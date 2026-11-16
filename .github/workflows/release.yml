@@ -90,6 +90,32 @@ jobs:
 
       - run: flutter pub get --enforce-lockfile
 
+      - name: Diagnose package config
+        run: |
+          echo "Current directory:"
+          pwd
+
+          echo "Project files:"
+          ls -la
+
+          echo "Pubspec location:"
+          find . -maxdepth 3 -name pubspec.yaml
+
+          echo "Package config:"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = Path(".dart_tool/package_config.json")
+          print("Exists:", p.exists())
+
+          if p.exists():
+              data = json.loads(p.read_text())
+              for package in data["packages"]:
+                  if package["name"] == "bpb":
+                      print("FOUND:", package)
+          PY
+
       - run: flutter test --no-pub
 
       - name: Sign release APKs
