@@ -1,45 +1,102 @@
-# 🎉 BPB VPN is here
+# 🚀 VOIDCORE VPN
 
-Welcome to BPB VPN, a companion app designed to make setting up and using the BPB Panel and Wizard simpler and more approachable. From getting started to managing your VPN connection and even combining it with third-party proxies like Tor and Psiphon, my goal is to make the experience easier to follow and less of a hassle.
+**A smarter, simpler, and more powerful VPN experience.**
 
-## 🌟 BPB Cloudflare scanners
+Welcome to VOIDCORE VPN! This release introduces powerful improvements to connection management, Cloudflare scanning, DNS functionality, routing, and privacy tools.
 
-BPB is now equipped with specific Cloudflare scanners for all protocol! The scanner follows user settings for protocol i.e. Fingerprint, SNI, IP version, Custom domain, Transport and is even capable of scanning with Fragment and UDP Obfuscation (ECH is excluded). Please note that the more `Probes count` you set, the better IPs you get, but the downside is the scanner consumes more worker requests during VLESS scanning.
+Our goal is to make advanced networking features easier to configure and use through a cleaner and more approachable experience.
 
-## 🌟 Serverless DNS mode
+---
 
-We've already seen DNS clients like `Rethink`, now assume you have a full DNS client with traffic splitting and even DNS tester!
-A very helpful feature which helps you through DNS disruptions supporting UDP,TCP,DoH and DoQ servers. You have your Workers and Pages DoH as private servers (using Cloudflare Security DoH as backend) along with some well-known public DNS servers of all types.
+## ☁️ Cloudflare Scanner
 
-The lovely part of this feature is **Fake SNI servers**, it uses Cloudflare, Google and Quad9 DoH servers with a Fake whitelisted SNI.
+The Cloudflare scanning system now supports all protocols with improved configuration compatibility.
 
-## 💡 Bug fixes and Improvements
+**Supported settings include:**
+- Fingerprint and SNI
+- IPv4 and IPv6
+- Custom domains
+- Transport configurations
+- Fragment and UDP Obfuscation
+- Configurable probe counts
 
-- Added **Snowflake AMP** to Tor modes.
-- Added **Routing Strategy**.
-- **Connection behaviour:** The app now checks the actual connection before updating the UI. As a result, connections that are not working remain in the `Connecting` state, unlike the usual behavior in v2rayNG and similar apps.
-- Renamed **Serverless Fragment** to **Serverless Packet**, since it also supports UDP obfuscation.
-- Updated the default **UDP obfuscation** noises to simulate the AmneziaWG obfuscation.
-- Added **QUIC**, **DNS query**, **STUN Binding** mimic presets to UDP noises, along with a **None** mode to apply custom packet for **Expression** UDP noise mode.
-- Changed the default Warp **Reserved bytes** value to disabled to reduce protocol fingerprinting on some ISPs.
-- Added bilingual Github issue templates in Farsi and English. It worth mentioning that all BPB projects are handled by one person, so please only report technical bugs and misconfigurations (not the app performance on your ISP) with all requested info, issue gets closed ASAP otherwise.
-- Updated **Reset settings** behaviour so that clean IPs and endpoints are preserved.
-- Updated the **Domain Fronting** + **Psiphon** config, it has much better performance now and tries to keep [@Patterniha](https://github.com/patterniha) template safe.
-- Updated the routing rules to block Iran firewall IPs by default.
-- Updated Xray-core to v26.11.9
-- Updated Tor to v4.9.16
-- Added ECH retries to Cloudflare API calls.
-- Added **Serverless DNS** mode supporting UDP,TCP,DoH and DoQ servers. Private servers use Cloudflare Security DoH as backend.
-- Added **Prefer IPv6** option.
+*Note: Higher probe counts can improve scanning results but may consume more Cloudflare Worker requests during VLESS scanning. ECH is not included in scanner support.*
+
+## 🌐 Serverless DNS
+
+A new DNS mode brings traffic splitting and DNS testing into one integrated experience.
+
+**Supported DNS protocols:**
+- UDP
+- TCP
+- DNS over HTTPS (DoH)
+- DNS over QUIC (DoQ)
+
+Additional features:
+- Cloudflare Workers and Pages private DoH endpoints
+- Public DNS server options
+- Built-in DNS testing
+- Fake SNI support using Cloudflare, Google, and Quad9 DoH endpoints
+
+## 🛡️ Privacy & Connection Improvements
+
+- Added Snowflake AMP support to Tor modes.
+- Added new Routing Strategy options.
+- Improved connection-state verification before updating the interface.
+- Updated Domain Fronting and Psiphon configurations.
+- Changed default WARP Reserved Bytes behavior to disabled.
+- Added a Prefer IPv6 option.
+- Added ECH retries for Cloudflare API requests.
+
+## ⚙️ Networking & UDP Enhancements
+
+- Renamed Serverless Fragment to **Serverless Packet**.
+- Updated default UDP Obfuscation noise presets.
+- Added QUIC, DNS Query, and STUN Binding presets.
+- Added a None mode for custom packet expressions.
+- Updated Fragment default configuration.
+
+## 🔧 Core & Routing Updates
+
+- Updated Xray-core to v26.11.9.
+- Updated Tor to v4.9.16.
 - Updated routing rules.
-- Added Fake SNI DoH feat. to DNS mode.
-- Updated Fragment default setting, for now it may works on some ISPs.
-- Fixed the BPB quick settings tile bug #9
-- Fixed UI and documentation bugs #13 #14
+- Added default blocking rules for Iran firewall IPs.
+- Improved routing configuration.
 
-> [!IMPORTANT]
-> Some default settings have been changed since 1.0.0 and 1.1.0, so I recommend to reset settings after this update just to be sure. Don't worry, this will preserve your clean IPs and endpoints.
+## 🐛 Bug Fixes
 
-**Full Changelog**: https://github.com/bia-pain-bache/BPB-VPN/compare/v1.0.0...v1.2.0
+- Fixed the Quick Settings tile issue (#9).
+- Fixed interface and documentation issues (#13, #14).
+- Improved settings reset behavior to preserve clean IPs and endpoints.
 
-![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/bia-pain-bache/BPB-VPN/v1.2.0/total)
+## ⚠️ Important: After Updating
+
+Some default settings have changed since versions 1.0.0 and 1.1.0.
+
+We recommend resetting your settings after updating to ensure the new defaults are applied correctly.
+
+**Your clean IPs and endpoints will be preserved.**
+
+## 📋 Full Changelog
+
+[View all changes from v1.0.0 to v1.2.0](https://github.com/bia-pain-bache/BPB-VPN/compare/v1.0.0...v1.2.0)
+
+---
+
+## 📥 Download VOIDCORE VPN
+
+Choose the APK that matches your Android device architecture from the Assets section below.
+
+**Available builds:**
+- ARM64
+- ARMv7
+- x86_64
+- Universal APK
+
+*Always verify the downloaded APK and its SHA-256 checksum before installation.*
+
+---
+
+**VOIDCORE VPN**  
+*Privacy. Connectivity. Control.*
