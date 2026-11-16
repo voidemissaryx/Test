@@ -54,7 +54,7 @@ class CloudflareApi {
       'permissionGroupKeys': permissions,
       'accountId': '*',
       'zoneId': 'all',
-      'name': 'BPB-VPN',
+      'name': 'VOIDCORE-VPN',
     }).toString();
   }
 
