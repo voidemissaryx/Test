@@ -116,7 +116,10 @@ jobs:
                       print("FOUND:", package)
           PY
 
-      - run: flutter test --no-pub --reporter expanded 
+      - name: Run Flutter tests with full logs
+        run: |
+          flutter test --no-pub --reporter expanded --chain-stack-traces 2>&1 | tee test-results.log
+          exit ${PIPESTATUS[0]}
       
       - name: Sign release APKs
         env:
