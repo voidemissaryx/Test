@@ -21,12 +21,17 @@ jobs:
 
       - name: Check the tag against pubspec.yaml
         run: |
-          tag="${GITHUB_REF_NAME#v}"
           version=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)
-          if [ "$tag" != "$version" ]; then
-            echo "::error::Tag v$tag doesn't match pubspec.yaml's version $version"
-            exit 1
+
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            tag="${GITHUB_REF_NAME#v}"
+
+            if [ "$tag" != "$version" ]; then
+              echo "::error::Tag v$tag doesn't match pubspec.yaml's version $version"
+              exit 1
+            fi
           fi
+
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
       - uses: actions/setup-java@v4
@@ -42,9 +47,6 @@ jobs:
         with:
           go-version: stable
           cache: false
-
-      - name: Get version
-        run: tag="${GITHUB_REF_NAME} version="${tag#v} echo "VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Validate bundled scanner CIDRs
         working-directory: scanner
