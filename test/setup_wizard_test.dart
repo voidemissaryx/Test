@@ -20,7 +20,7 @@ void main() {
   testWidgets('step 1 asks about a Cloudflare account, No shows sign-up steps', (tester) async {
     await pumpWizard(tester);
     expect(find.text('Step 1 of 3'), findsOneWidget);
-    expect(find.text('Welcome to BPB'), findsOneWidget);
+    expect(find.text('Welcome to VOIDCORE'), findsOneWidget);
 
     await tester.tap(find.text('No, sign me up'));
     await tester.pumpAndSettle();
