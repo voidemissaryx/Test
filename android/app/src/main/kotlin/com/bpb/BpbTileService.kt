@@ -43,7 +43,7 @@ class BpbTileService : TileService() {
             CoreManager.State.CONNECTED -> Tile.STATE_ACTIVE
             else -> Tile.STATE_INACTIVE
         }
-        tile.label = "BPB"
+        tile.label = "VOIDCORE"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             tile.subtitle = when (CoreManager.state) {
                 CoreManager.State.CONNECTED -> "Connected"
