@@ -52,7 +52,7 @@ android {
         debug {
             if (project.findProperty("dev") == "true") {
                 applicationIdSuffix = ".dev"
-                manifestPlaceholders["applicationLabel"] = "BPB Dev"
+                manifestPlaceholders["applicationLabel"] = "VoidCore Dev"
             }
         }
         release {
