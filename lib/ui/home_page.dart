@@ -22,18 +22,27 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // The status bar icon, tinted like the other icons.
-            ImageIcon(
-              const AssetImage('assets/icons/ic_stat_vpn.png'),
-              size: 24,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(width: 6),
-            const Text('VOIDCORE', style: TextStyle(fontWeight: FontWeight.w600)),
-          ],
+  mainAxisSize: MainAxisSize.max,
+  children: [
+    ImageIcon(
+      const AssetImage('assets/icons/ic_stat_vpn.png'),
+      size: 24,
+      color: Theme.of(context).colorScheme.primary,
+    ),
+    const SizedBox(width: 8),
+    Flexible(
+      child: Text(
+        'VOIDCORE',
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
         ),
+      ),
+    ),
+  ],
+),
         actions: [
           // VPN: the whole device; Proxy: only apps set to use the local SOCKS/HTTP proxy.
           ChipMenu(
