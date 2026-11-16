@@ -21,7 +21,7 @@ jobs:
 
       - name: Check the tag against pubspec.yaml
         run: |
-          tag="${GITHUB_REF_NAME#v}"
+          tag="${GITHUB_REF_NAME#}"
           version=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)
           if [ "$tag" != "$version" ]; then
             echo "::error::Tag v$tag doesn't match pubspec.yaml's version $version"
