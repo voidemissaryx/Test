@@ -33,7 +33,7 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        manifestPlaceholders["applicationLabel"] = "BPB"
+        manifestPlaceholders["applicationLabel"] = "VoidCore"
     }
 
     signingConfigs {
