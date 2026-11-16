@@ -28,7 +28,7 @@ void main() {
 
     await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
-    expect(find.text('Welcome to BPB'), findsOneWidget);
+    expect(find.text('Welcome to VOIDCORE'), findsOneWidget);
   });
 
   testWidgets('Yes goes to the token step, Back returns', (tester) async {
