@@ -30,7 +30,7 @@ class UpdateException implements Exception {
 /// the installed version. Releases are tagged vX.Y.Z and carry one APK per ABI, named
 /// `bpb-X.Y.Z-<abi>.apk` (see .github/workflows/release.yml).
 class UpdateChecker {
-  static const repository = 'bia-pain-bache/BPB-VPN';
+  static const repository = 'voidemissaryx/VOIDCORE';
   static const _latest = 'https://api.github.com/repos/$repository/releases/latest';
 
   final http.Client client;
