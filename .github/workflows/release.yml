@@ -6,10 +6,9 @@
 name: Release
 
 on:
-  workflow_dispatch:
   push:
     tags: ['v*']
-  
+
 permissions:
   contents: write
 
@@ -21,17 +20,12 @@ jobs:
 
       - name: Check the tag against pubspec.yaml
         run: |
+          tag="${GITHUB_REF_NAME#v}"
           version=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)
-
-          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            tag="${GITHUB_REF_NAME#v}"
-
-            if [ "$tag" != "$version" ]; then
-              echo "::error::Tag v$tag doesn't match pubspec.yaml's version $version"
-              exit 1
-            fi
+          if [ "$tag" != "$version" ]; then
+            echo "::error::Tag v$tag doesn't match pubspec.yaml's version $version"
+            exit 1
           fi
-
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
       - uses: actions/setup-java@v4
@@ -90,37 +84,8 @@ jobs:
 
       - run: flutter pub get --enforce-lockfile
 
-      - name: Run Flutter tests with full logs
-        run: |
-          flutter test --no-pub --reporter expanded --chain-stack-traces 2>&1 | tee test-results.log
-          exit ${PIPESTATUS[0]}
-          
-      - name: Diagnose package config
-        run: |
-          echo "Current directory:"
-          pwd
+      - run: flutter test --no-pub
 
-          echo "Project files:"
-          ls -la
-
-          echo "Pubspec location:"
-          find . -maxdepth 3 -name pubspec.yaml
-
-          echo "Package config:"
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          p = Path(".dart_tool/package_config.json")
-          print("Exists:", p.exists())
-
-          if p.exists():
-              data = json.loads(p.read_text())
-              for package in data["packages"]:
-                  if package["name"] == "bpb":
-                      print("FOUND:", package)
-          PY
-      
       - name: Sign release APKs
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -172,7 +137,7 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          name: VoidCore ${{ env.VERSION }}
+          name: BPB ${{ env.VERSION }}
           body_path: RELEASE_NOTES.md
           files: |
             dist/*.apk
