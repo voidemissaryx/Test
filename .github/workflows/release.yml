@@ -116,8 +116,8 @@ jobs:
                       print("FOUND:", package)
           PY
 
-      - run: flutter test --no-pub
-
+      - run: flutter test --no-pub --reporter expanded 
+      
       - name: Sign release APKs
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
