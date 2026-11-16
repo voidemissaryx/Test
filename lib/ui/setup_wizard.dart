@@ -279,7 +279,7 @@ class _AccountStep extends StatelessWidget {
     }
     return _StepLayout(
       icon: Symbols.cloud_rounded,
-      title: 'Welcome to BPB',
+      title: 'Welcome to VOIDCORE',
       buttons: [
         Expanded(
           child: OutlinedButton(onPressed: onNo, child: const Text('No, sign me up')),
@@ -291,7 +291,7 @@ class _AccountStep extends StatelessWidget {
       ],
       children: const [
         Text(
-          "BPB runs your own private proxy server on Cloudflare's free plan. "
+          "VOIDCORE runs your own private proxy server on Cloudflare's free plan. "
           'Setting it up takes three steps and a couple of minutes.',
         ),
         SizedBox(height: 24),
@@ -756,7 +756,7 @@ class _InstallStepState extends State<_InstallStep> {
     }
     return _StepLayout(
       icon: Symbols.rocket_launch_rounded,
-      title: widget.addingAccount ? 'Install your VPN worker' : 'Install BPB',
+      title: widget.addingAccount ? 'Install your VPN worker' : 'Install VOIDCORE',
       buttons: buttons,
       children: [
         Text(
@@ -835,7 +835,7 @@ class _DoneStep extends StatelessWidget {
         Expanded(
           child: addingAccount
               ? FilledButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Done'))
-              : FilledButton(onPressed: state.finishSetup, child: const Text('Start using BPB')),
+              : FilledButton(onPressed: state.finishSetup, child: const Text('Start using VOIDCORE')),
         ),
       ],
       children: [
