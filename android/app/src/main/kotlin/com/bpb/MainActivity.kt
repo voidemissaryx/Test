@@ -154,7 +154,7 @@ class MainActivity : FlutterActivity() {
                 ConfigStore.save(
                     this, config,
                     ConfigStore.Options(
-                        remark = call.argument<String>("remark") ?: "BPB",
+                        remark = call.argument<String>("remark") ?: "VOIDCORE",
                         perAppMode = call.argument<String>("perAppMode") ?: "off",
                         apps = call.argument<List<String>>("apps")?.toSet() ?: emptySet(),
                         mtu = call.argument<Int>("mtu") ?: 1500,
