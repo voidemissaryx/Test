@@ -127,7 +127,7 @@ jobs:
               echo "::error::Expected APK was not created: $apk"
               exit 1
             fi
-            cp "$apk" "dist/bpb-$VERSION-$abi.apk"
+            cp "$apk" "dist/voidcore-$VERSION-$abi.apk"
           done
 
           flutter build apk --release --no-pub
@@ -136,10 +136,10 @@ jobs:
             echo "::error::Expected universal APK was not created: $apk"
             exit 1
           fi
-          cp "$apk" "dist/bpb-$VERSION-universal.apk"
+          cp "$apk" "dist/voidcore-$VERSION-universal.apk"
 
       - name: Generate APK SHA-256 checksums
-        run: sha256sum dist/bpb-*.apk > dist/SHA256SUMS
+        run: sha256sum dist/voidcore-*.apk > dist/SHA256SUMS
 
       - uses: softprops/action-gh-release@v2
         with:
