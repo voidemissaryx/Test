@@ -257,7 +257,7 @@ object ConfigStore {
     fun loadOptions(context: Context): Options {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return Options(
-            remark = prefs.getString("remark", null) ?: "BPB",
+            remark = prefs.getString("remark", null) ?: "VOIDCORE",
             perAppMode = prefs.getString("perAppMode", null) ?: "off",
             apps = prefs.getStringSet("apps", null) ?: emptySet(),
             mtu = prefs.getInt("mtu", 1500),
