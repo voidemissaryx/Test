@@ -43,6 +43,9 @@ jobs:
           go-version: stable
           cache: false
 
+      - name: Get version
+        run: tag="${GITHUB_REF_NAME} version="${tag#v} echo "VERSION=$version" >> "$GITHUB_ENV"
+
       - name: Validate bundled scanner CIDRs
         working-directory: scanner
         run: go run ./cmd/normalize_scanner_cidrs --check ../assets/scanner
@@ -138,7 +141,7 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          name: BPB ${{ env.VERSION }}
+          name: VoidCore ${{ env.VERSION }}
           body_path: RELEASE_NOTES.md
           files: |
             dist/*.apk
