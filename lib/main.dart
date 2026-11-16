@@ -24,7 +24,7 @@ class BpbApp extends StatelessWidget {
       child: ListenableBuilder(
         listenable: Listenable.merge([state.themeColor, state.themeMode]),
         builder: (context, _) => MaterialApp(
-          title: 'BPB',
+          title: 'VOIDCORE',
           debugShowCheckedModeBanner: false,
           theme: buildTheme(Brightness.light, state.themeColor.value),
           darkTheme: buildTheme(Brightness.dark, state.themeColor.value),
