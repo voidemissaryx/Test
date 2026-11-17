@@ -64,12 +64,6 @@ Additional features:
 - Added default blocking rules for Iran firewall IPs.
 - Improved routing configuration.
 
-## 🐛 Bug Fixes
-
-- Fixed the Quick Settings tile issue (#9).
-- Fixed interface and documentation issues (#13, #14).
-- Improved settings reset behavior to preserve clean IPs and endpoints.
-
 ## ⚠️ Important: After Updating
 
 Some default settings have changed since versions 1.0.0 and 1.1.0.
@@ -77,10 +71,6 @@ Some default settings have changed since versions 1.0.0 and 1.1.0.
 We recommend resetting your settings after updating to ensure the new defaults are applied correctly.
 
 **Your clean IPs and endpoints will be preserved.**
-
-## 📋 Full Changelog
-
-[View all changes from v1.0.0 to v1.2.0](https://github.com/bia-pain-bache/BPB-VPN/compare/v1.0.0...v1.2.0)
 
 ---
 
