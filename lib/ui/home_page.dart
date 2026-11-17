@@ -22,7 +22,7 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Row(
-  mainAxisSize: MainAxisSize.max,
+  mainAxisSize: MainAxisSize.min,
   children: [
     ImageIcon(
       const AssetImage('assets/icons/ic_stat_vpn.png'),
