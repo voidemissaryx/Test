@@ -1,4 +1,4 @@
-##🔐 VOIDCORE VPN
+# 🔐 VOIDCORE VPN
 
 Beyond Connectivity.
 
@@ -8,7 +8,7 @@ VOIDCORE aims to provide a simple and modern VPN experience with advanced connec
 
 ---
 
-##✨ Features
+# ✨ Features
 
 - Modern and user-friendly interface
 - Advanced connection configurations
@@ -18,19 +18,19 @@ VOIDCORE aims to provide a simple and modern VPN experience with advanced connec
 - Android support
 - Continuous improvements and updates
 
-##📱 Platform Support
+# 📱 Platform Support
 
 - Android| ✅ Supported
 - Windows| ❌ Not Available
 - iOS| ❌ Not Available
 
-##📥 Download
+# 📥 Download
 
 Get the latest version of VOIDCORE:
 
 "Download Latest Release" (../../releases/latest)
 
-##⚙️ Installation
+# ⚙️ Installation
 
 1. Download the latest Android APK from Releases
 2. Install the APK on your Android device
@@ -38,29 +38,25 @@ Get the latest version of VOIDCORE:
 4. Configure your connection settings
 5. Follow the in-app instructions
 
-##🛠️ Technologies
+# 🛠️ Technologies
 
 - Flutter
 - Dart
 - Kotlin
 - Go
 
-##🔒 Privacy & Security
+# 🔒 Privacy & Security
 
 VOIDCORE is designed with privacy and secure connectivity in mind.
 
 Always use trusted configurations and keep your credentials and API tokens private.
 
-##📢 Community & Updates
+# 📢 Community & Updates
 
 Stay connected with the latest news, releases, and announcements.
 
 Telegram: "@voidcorevpn" (https://t.me/voidcorevpn)
 
-##📋 Disclaimer
+# 📋 Disclaimer
 
 VOIDCORE is provided as-is. Connection availability and performance may vary depending on network conditions, configuration, and service availability.
-
-##📄 License
-
-See the "LICENSE" (LICENSE) file for licensing information.
