@@ -33,6 +33,7 @@ class AppState extends ChangeNotifier {
   static const _kProfile = 'profile';
   static const _kDevice = 'device';
   static const _kSecretAccounts = 'cloudflareAccounts';
+  static const _kConnectionHistory = 'voidcore.connection.history.v1';
 
   late SharedPreferences _prefs;
   final _secrets = const FlutterSecureStorage();
@@ -126,6 +127,41 @@ class AppState extends ChangeNotifier {
   VpnStatus status = VpnStatus.disconnected;
   String? error;
   DateTime? connectedAt;
+
+  /// Recent connection attempts, with no configuration payloads or credentials.
+  List<Map<String, dynamic>> connectionHistory = [];
+  DateTime? _historyAttemptStartedAt;
+  DateTime? _historyConnectedAt;
+  String? _historyAttemptMode;
+
+  void clearConnectionHistory() {
+    connectionHistory.clear();
+    _prefs.remove(_kConnectionHistory);
+    notifyListeners();
+  }
+
+  void _recordConnectionHistory({required bool success, String? failure, int? latency}) {
+    final started = _historyAttemptStartedAt;
+    if (started == null) return;
+    final ended = DateTime.now();
+    connectionHistory.insert(0, {
+      'mode': _historyAttemptMode ?? mode.label,
+      'time': started.toLocal().toIso8601String(),
+      'duration': success && _historyConnectedAt != null
+          ? ended.difference(_historyConnectedAt!).inSeconds
+          : 0,
+      'success': success,
+      'latency': latency,
+      'failure': success ? null : failure,
+    });
+    if (connectionHistory.length > 100) {
+      connectionHistory = connectionHistory.take(100).toList();
+    }
+    _historyAttemptStartedAt = null;
+    _historyConnectedAt = null;
+    _historyAttemptMode = null;
+    _prefs.setString(_kConnectionHistory, jsonEncode(connectionHistory));
+  }
 
   /// Settings changed while connected; reconnect to apply them.
   bool needsReconnect = false;
@@ -296,6 +332,10 @@ class AppState extends ChangeNotifier {
       if (c.id != chain.id) c.toJson(),
   ]);
 
+  void updateChain(ChainProxy chain) => write('chains', [
+    for (final c in profile.chains) c.id == chain.id ? chain.toJson() : c.toJson(),
+  ]);
+
   /// [region]: an exitRegions code, or empty for the fastest (any region).
   void setExitRegion(String region) => write('device.exit.region', region);
 
@@ -332,6 +372,17 @@ class AppState extends ChangeNotifier {
     _stored = Profile.fromJson(_decodeMap(_prefs.getString(_kProfile)))
         .updated('vless', null);
     device = DeviceSettings.fromJson(_decodeMap(_prefs.getString(_kDevice)));
+    try {
+      final rawHistory = _prefs.getString(_kConnectionHistory);
+      if (rawHistory != null) {
+        connectionHistory = (jsonDecode(rawHistory) as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+    } catch (_) {
+      connectionHistory = [];
+    }
     if (_prefs.containsKey('configOverrides')) {
       await _prefs.remove('configOverrides');
     }
@@ -523,6 +574,16 @@ class AppState extends ChangeNotifier {
   void _onVpnState(VpnStateEvent event) {
     final wasConnected = status == VpnStatus.connected;
     final sameSession = connectedAt != null && connectedAt == event.connectedAt;
+    if (event.status == VpnStatus.connected && _historyAttemptStartedAt != null) {
+      _historyConnectedAt = event.connectedAt ?? DateTime.now();
+    }
+    if (event.status == VpnStatus.disconnected && _historyAttemptStartedAt != null) {
+      _recordConnectionHistory(
+        success: _historyConnectedAt != null,
+        failure: event.error ?? error,
+        latency: pingMs != null && pingMs! >= 0 ? pingMs : null,
+      );
+    }
     status = event.status;
     error = event.error;
     connectedAt = event.connectedAt;
@@ -570,6 +631,9 @@ class AppState extends ChangeNotifier {
   Future<void> connect() async {
     if (isBusy) return;
     error = null;
+    _historyAttemptStartedAt = DateTime.now();
+    _historyConnectedAt = null;
+    _historyAttemptMode = mode.label;
     status = VpnStatus.connecting;
     notifyListeners();
     try {
@@ -596,6 +660,7 @@ class AppState extends ChangeNotifier {
     } catch (e) {
       status = VpnStatus.disconnected;
       error = e is StateError ? e.message : '$e';
+      _recordConnectionHistory(success: false, failure: error);
       notifyListeners();
     }
   }

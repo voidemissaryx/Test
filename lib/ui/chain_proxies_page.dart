@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:http/http.dart' as http;
 
 import '../models/settings.dart';
 import '../services/chain_proxy.dart';
@@ -22,9 +25,16 @@ class ChainProxiesPage extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final chains = parseChainProxies(text, fileName: fileName);
-      AppScope.read(context).addChains(chains);
+      final state = AppScope.read(context);
+      final existing = state.profile.chains.map((c) => c.link).toSet();
+      final fresh = chains.where((c) => !existing.contains(c.link)).toList();
+      if (fresh.isEmpty) {
+        messenger.showSnackBar(const SnackBar(content: Text('These configs are already imported.')));
+        return;
+      }
+      state.addChains(fresh);
       messenger.showSnackBar(
-        SnackBar(content: Text(chains.length == 1 ? 'Added ${chains.single.name}' : 'Added ${chains.length} configs')),
+        SnackBar(content: Text(fresh.length == 1 ? 'Added ${fresh.single.name}' : 'Added ${fresh.length} configs')),
       );
     } on FormatException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
@@ -40,6 +50,18 @@ class ChainProxiesPage extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
+              leading: const Icon(Icons.edit_note),
+              title: const Text('Add manually'),
+              subtitle: const Text('Paste one or more supported proxy links'),
+              onTap: () => Navigator.of(context).pop('manual'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.link),
+              title: const Text('Import subscription URL'),
+              subtitle: const Text('Download and validate a supported subscription'),
+              onTap: () => Navigator.of(context).pop('url'),
+            ),
+            ListTile(
               leading: const Icon(Symbols.content_paste_rounded),
               title: const Text('Import from clipboard'),
               subtitle: const Text('v2ray links or WireGuard configs'),
@@ -52,7 +74,7 @@ class ChainProxiesPage extends StatelessWidget {
             ),
             ListTile(
               leading: const Icon(Symbols.folder_rounded),
-              title: const Text('Import WireGuard config file'),
+              title: const Text('Import config file'),
               onTap: () => Navigator.of(context).pop('file'),
             ),
           ],
@@ -62,10 +84,28 @@ class ChainProxiesPage extends StatelessWidget {
     if (source == null || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
-    final String? text;
+    String? text;
     String? fileName;
     try {
       switch (source) {
+        case 'manual':
+          text = await _manualInput(context);
+        case 'url':
+          final url = await _urlInput(context);
+          if (url == null || url.trim().isEmpty) return;
+          final uri = Uri.tryParse(url.trim());
+          if (uri == null || !{'http', 'https'}.contains(uri.scheme)) {
+            throw const FormatException('Enter a valid HTTP or HTTPS subscription URL.');
+          }
+          final response = await http.get(uri).timeout(const Duration(seconds: 20));
+          if (response.statusCode < 200 || response.statusCode >= 300) {
+            throw FormatException('Subscription request failed (HTTP ${response.statusCode}).');
+          }
+          text = response.body;
+          try {
+            final decoded = utf8.decode(base64.decode(base64.normalize(text!.trim().replaceAll(RegExp(r'\s+'), ''))));
+            if (decoded.contains('://')) text = decoded;
+          } catch (_) {}
         case 'clipboard':
           text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
         case 'qr':
@@ -78,6 +118,12 @@ class ChainProxiesPage extends StatelessWidget {
     } on PlatformException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text("Couldn't read the file: ${e.message}")));
       return;
+    } on FormatException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      return;
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Import failed: $e')));
+      return;
     }
     if (source == 'clipboard' && (text == null || text.trim().isEmpty)) {
       messenger.showSnackBar(const SnackBar(content: Text('The clipboard is empty')));
@@ -86,11 +132,62 @@ class ChainProxiesPage extends StatelessWidget {
     if (context.mounted) _import(context, text, fileName: fileName);
   }
 
+  Future<String?> _manualInput(BuildContext context) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add config manually'),
+        content: SizedBox(
+          width: 520,
+          child: TextField(
+            controller: controller,
+            minLines: 4,
+            maxLines: 9,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'vless://…\nvmess://…\ntrojan://…',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Validate & add')),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
+  Future<String?> _urlInput(BuildContext context) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import subscription URL'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(hintText: 'https://example.com/subscription'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Import')),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final theme = Theme.of(context);
-    final chains = state.profile.chains;
+    final chains = [...state.profile.chains]..sort((a, b) => (b.favorite ? 1 : 0).compareTo(a.favorite ? 1 : 0));
     return Scaffold(
       appBar: AppBar(title: const Text('Chain proxies')),
       floatingActionButton: FloatingActionButton.extended(
@@ -131,6 +228,20 @@ class _ChainTile extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied')));
   }
 
+  Future<void> _export(BuildContext context) async {
+    try {
+      await VpnChannel.shareFile(
+        name: '${chain.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')}.txt',
+        content: chain.link,
+        title: 'Export ${chain.name}',
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+      }
+    }
+  }
+
   void _showQr(BuildContext context) => showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
@@ -144,6 +255,66 @@ class _ChainTile extends StatelessWidget {
       actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close'))],
     ),
   );
+
+  Future<void> _edit(BuildContext context) async {
+    final name = TextEditingController(text: chain.name);
+    final link = TextEditingController(text: chain.link);
+    final category = TextEditingController(text: chain.category);
+    final result = await showDialog<({String name, String link, String category})>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit config'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
+            TextField(controller: link, minLines: 2, maxLines: 4, decoration: const InputDecoration(labelText: 'Share link')),
+            TextField(controller: category, decoration: const InputDecoration(labelText: 'Category (optional)')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, (name: name.text.trim(), link: link.text.trim(), category: category.text.trim())), child: const Text('Save')),
+        ],
+      ),
+    );
+    name.dispose();
+    link.dispose();
+    category.dispose();
+    if (result == null || !context.mounted) return;
+    try {
+      final parsed = ChainInfo.of(result.link);
+      if (parsed == null || result.name.isEmpty) throw const FormatException('Name or supported link is invalid.');
+      final state = AppScope.read(context);
+      state.deleteChain(chain);
+      state.addChains([ChainProxy(
+        id: chain.id,
+        name: result.name,
+        link: result.link,
+        favorite: chain.favorite,
+        category: result.category,
+      )]);
+    } on FormatException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  void _duplicate(BuildContext context) {
+    AppScope.read(context).addChains([
+      ChainProxy(id: newChainId(), name: '${chain.name} copy', link: chain.link, category: chain.category),
+    ]);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Config duplicated')));
+  }
+
+  void _toggleFavorite(BuildContext context) {
+    AppScope.read(context).updateChain(ChainProxy(
+      id: chain.id,
+      name: chain.name,
+      link: chain.link,
+      favorite: !chain.favorite,
+      category: chain.category,
+    ));
+  }
 
   Future<void> _delete(BuildContext context) async {
     final ok = await showDialog<bool>(
@@ -181,6 +352,10 @@ class _ChainTile extends StatelessWidget {
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
+                if (chain.category.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(chain.category, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary)),
+                ],
                 if (info != null) ...[
                   const SizedBox(height: 6),
                   Wrap(
@@ -193,14 +368,34 @@ class _ChainTile extends StatelessWidget {
             ),
           ),
           IconButton(
+            tooltip: chain.favorite ? 'Remove favorite' : 'Add favorite',
+            icon: Icon(chain.favorite ? Icons.star : Icons.star_border),
+            onPressed: () => _toggleFavorite(context),
+          ),
+          IconButton(
             tooltip: 'Copy link',
             icon: const Icon(Symbols.content_copy_rounded),
             onPressed: () => _copy(context),
           ),
           IconButton(
+            tooltip: 'Export config',
+            icon: const Icon(Icons.ios_share),
+            onPressed: () => _export(context),
+          ),
+          IconButton(
             tooltip: 'QR code',
             icon: const Icon(Symbols.qr_code_rounded),
             onPressed: () => _showQr(context),
+          ),
+          IconButton(
+            tooltip: 'Edit',
+            icon: const Icon(Icons.edit),
+            onPressed: () => _edit(context),
+          ),
+          IconButton(
+            tooltip: 'Duplicate',
+            icon: const Icon(Icons.copy_all),
+            onPressed: () => _duplicate(context),
           ),
           IconButton(
             tooltip: 'Delete',

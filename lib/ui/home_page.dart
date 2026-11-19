@@ -5,6 +5,8 @@ import '../models/settings.dart';
 import '../state/app_state.dart';
 import 'chip_menu.dart';
 import 'config_view_page.dart';
+import 'chain_proxies_page.dart';
+import 'connection_tools_page.dart';
 import 'connection_card.dart';
 import 'format.dart';
 import 'log_page.dart';
@@ -53,19 +55,23 @@ class HomePage extends StatelessWidget {
             enabled: !state.isBusy,
           ),
           const SizedBox(width: 4),
-          IconButton(
-            tooltip: 'Logs',
-            icon: const Icon(Symbols.bug_report_rounded),
-            onPressed: () =>
-                Navigator.of(context)
-                    .push(MaterialPageRoute(builder: (_) => const LogPage())),
-          ),
-          IconButton(
-            tooltip: 'View config',
-            icon: const Icon(Symbols.data_object_rounded),
-            onPressed: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const ConfigViewPage())),
+          PopupMenuButton<String>(
+            tooltip: 'More tools',
+            onSelected: (value) {
+              final Widget page = switch (value) {
+                'configs' => const ChainProxiesPage(),
+                'smart' => const ConnectionToolsPage(),
+                'logs' => const LogPage(),
+                _ => const ConfigViewPage(),
+              };
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'configs', child: ListTile(leading: Icon(Icons.link), title: Text('Manage configs'))),
+              PopupMenuItem(value: 'smart', child: ListTile(leading: Icon(Icons.auto_awesome), title: Text('Smart Connect & history'))),
+              PopupMenuItem(value: 'logs', child: ListTile(leading: Icon(Symbols.bug_report_rounded), title: Text('Logs'))),
+              PopupMenuItem(value: 'config', child: ListTile(leading: Icon(Symbols.data_object_rounded), title: Text('View config'))),
+            ],
           ),
           IconButton(
             tooltip: 'Settings',
