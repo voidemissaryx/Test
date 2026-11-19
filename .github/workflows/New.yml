@@ -1,0 +1,214 @@
+
+name: VOIDCORE Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Publish Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Version
+        run: |
+          set -euo pipefail
+
+          VERSION=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)
+
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF_NAME#v}"
+
+            if [[ "$TAG" != "$VERSION" ]]; then
+              echo "::error::Tag version $TAG does not match pubspec version $VERSION"
+              exit 1
+            fi
+          fi
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Release version: $VERSION"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.7
+          channel: stable
+          cache: true
+
+      - name: Validate Scanner CIDRs
+        working-directory: scanner
+        run: go run ./cmd/normalize_scanner_cidrs --check ../assets/scanner
+
+      - name: Build Psiphon
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+        run: bash scripts/build_psiphon.sh
+
+      - name: Fetch Tor
+        run: bash scripts/fetch_tor.sh
+
+      - name: Build Xray Core
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+        run: bash scripts/build_xray.sh
+
+      - name: Free Go Build Cache
+        run: |
+          go clean -cache -modcache
+          df -h /
+
+      - name: Fetch Geo Data
+        run: bash scripts/fetch_geo.sh
+
+      - name: Minify Cloudflare Worker
+        working-directory: worker
+        run: |
+          npm install --no-package-lock --no-audit --no-fund
+          npm run minify
+
+      - name: Fetch Tor Bridges
+        run: bash scripts/fetch_tor_bridges.sh
+
+      - name: Install Flutter Dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Run Flutter Tests
+        run: flutter test --no-pub
+
+      - name: Configure Release Signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$KEYSTORE_BASE64" ||
+                -z "$KEYSTORE_PASSWORD" ||
+                -z "$KEY_ALIAS" ||
+                -z "$KEY_PASSWORD" ]]; then
+            echo "::error::Missing release signing secrets."
+            exit 1
+          fi
+
+          mkdir -p android/keystore
+
+          printf '%s' "$KEYSTORE_BASE64" \
+            | base64 --decode > android/keystore/release.jks
+
+          keytool -list \
+            -keystore android/keystore/release.jks \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias "$KEY_ALIAS" > /dev/null
+
+          {
+            printf 'storeFile=../keystore/release.jks\n'
+            printf 'storePassword=%s\n' "$KEYSTORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+          } > android/key.properties
+
+      - name: Build Split APKs
+        run: |
+          set -euo pipefail
+
+          flutter build apk \
+            --release \
+            --split-per-abi \
+            --no-pub
+
+      - name: Build Universal APK
+        run: |
+          set -euo pipefail
+
+          flutter build apk \
+            --release \
+            --no-pub
+
+      - name: Prepare Release Files
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist
+
+          for ABI in arm64-v8a armeabi-v7a x86_64; do
+            APK="build/app/outputs/flutter-apk/app-${ABI}-release.apk"
+
+            if [[ ! -s "$APK" ]]; then
+              echo "::error::Missing APK: $APK"
+              exit 1
+            fi
+
+            cp "$APK" "dist/VOIDCORE-${VERSION}-${ABI}.apk"
+          done
+
+          UNIVERSAL="build/app/outputs/flutter-apk/app-release.apk"
+
+          if [[ ! -s "$UNIVERSAL" ]]; then
+            echo "::error::Universal APK missing"
+            exit 1
+          fi
+
+          cp "$UNIVERSAL" "dist/VOIDCORE-${VERSION}-universal.apk"
+
+      - name: Verify APK Signatures
+        run: |
+          set -euo pipefail
+
+          for APK in dist/*.apk; do
+            apksigner verify --verbose "$APK"
+          done
+
+      - name: Generate SHA256 Checksums
+        run: |
+          cd dist
+          sha256sum *.apk > SHA256SUMS
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: VOIDCORE ${{ env.VERSION }}
+          body_path: RELEASE_NOTES.md
+          files: |
+            dist/*.apk
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+          draft: false
+          prerelease: false
+
+      - name: Cleanup Signing Files
+        if: always()
+        run: |
+          rm -f android/key.properties
+          rm -f android/keystore/release.jks
