@@ -908,6 +908,7 @@ class AppState extends ChangeNotifier {
         mtu: device.mtu,
         appendHttpProxy: device.appendHttpProxy,
         proxyOnly: proxyMode,
+        verifyConnection: true,
       );
       final connected = await _waitForConnection();
       if (!connected) {
@@ -917,6 +918,12 @@ class AppState extends ChangeNotifier {
       }
       return connected;
     } catch (e) {
+      try {
+        await VpnChannel.stop();
+        await _waitUntilDisconnected();
+      } catch (_) {
+        // Preserve the original startup error.
+      }
       activeV2rayId = null;
       status = VpnStatus.disconnected;
       error = e is StateError ? e.message : '$e';
