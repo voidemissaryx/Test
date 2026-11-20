@@ -58,8 +58,8 @@ class _HomePageState extends State<HomePage> {
                 onTap: () { setState(() => _section = _AppSection.voidCore); Navigator.pop(context); },
               ),
               _WorkspaceButton(
-                title: 'V2rayNG',
-                subtitle: 'Share-link configuration manager',
+                title: 'V2Ray',
+                subtitle: 'Independent profile manager',
                 icon: Symbols.hub_rounded,
                 selected: _section == _AppSection.v2rayNg,
                 onTap: () { setState(() => _section = _AppSection.v2rayNg); Navigator.pop(context); },
