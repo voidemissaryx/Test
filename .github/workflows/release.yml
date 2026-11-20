@@ -20,14 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Debug checkout and donation files
-        run: |
-          echo "Branch: $GITHUB_REF"
-          echo "Commit: $(git rev-parse HEAD)"
-          echo "Donation files:"
-          find test lib -iname '*donat*' -print
-
+      
       - name: Check the tag against pubspec.yaml
         run: |
           version=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)
@@ -42,6 +35,31 @@ jobs:
           fi
 
           echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Update version in pubspec.yaml
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ inputs.version }}"
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version format. Use X.Y.Z"
+            exit 1
+          fi
+
+          BUILD_NUMBER=$(grep '^version:' pubspec.yaml | sed -E 's/.*\+([0-9]+).*/\1/')
+
+          if [[ "$BUILD_NUMBER" == "$(grep '^version:' pubspec.yaml | sed -E 's/.*\+([0-9]+).*/\1/')" ]]; then
+            BUILD_NUMBER=$((BUILD_NUMBER + 1))
+          fi
+
+          sed -i -E "s/^version:.*/version: ${VERSION}+${BUILD_NUMBER}/" pubspec.yaml
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+
+          echo "Updated pubspec.yaml:"
+          grep '^version:' pubspec.yaml
 
       - name: Create and push release tag
         env:
