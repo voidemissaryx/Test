@@ -1176,9 +1176,14 @@ class _V2rayPowerCard extends StatelessWidget {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: fill.withValues(alpha: connected ? .45 : .25),
-                        blurRadius: connected ? 26 : 18,
-                        offset: const Offset(0, 7),
+                        color: fill.withValues(alpha: connected ? .45 : .30),
+                        blurRadius: connected ? 30 : 24,
+                        offset: const Offset(0, 9),
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: .22),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
