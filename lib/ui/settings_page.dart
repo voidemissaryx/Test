@@ -976,7 +976,7 @@ class _MitmCaTileState extends State<_MitmCaTile> {
       context: context,
       builder: (context) => AlertDialog(
         icon: const Icon(Symbols.verified_user_rounded, size: 36, weight: 600),
-        title: const Text('Install certificate'),
+        title: const Text('Install voidcore-cert'),
         content: const Text(
           'Certificate will be saved to Downloads folder. Install it in Settings → '
           'Security → Encryption & credentials → Install a certificate → CA certificate.\n\n'
@@ -1024,8 +1024,8 @@ class _MitmCaTileState extends State<_MitmCaTile> {
         final created = snapshot.data ?? false;
         return ListTile(
           leading: const Icon(Symbols.vpn_key_rounded),
-          title: const Text('MITM certificate'),
-          subtitle: Text(created ? 'Created' : 'Not created'),
+          title: const Text('voidcore-cert'),
+          subtitle: Text(created ? 'MITM certificate · Created' : 'MITM certificate · Not created'),
           trailing: _busy
               ? const SizedBox(
                   width: 24,
