@@ -1759,7 +1759,7 @@ void main() {
         'address': ['10.0.0.2/32', 'fd00::2/128'],
         'peers': [
           {
-            'publicKey': 'cHVibGlja2V5cHVibGlja2V5cHJpdmF0ZWtleXByaXZhdGVrZXlwcml2YXRla2V5MDE+',
+            'publicKey': 'cHVibGlja2V5cHVibGlja2V5cHVibGlja2V5cHViMDE+',
             'preSharedKey': 'cHJlc2hhcmVka2V5cHJlc2hhcmVka2V5cHJlc2hhcjE=',
             'endpoint': 'vpn.example.com:51820',
             'keepAlive': 25,
@@ -1772,7 +1772,7 @@ void main() {
       expect(proxy['streamSettings']?['sockopt']?['dialerProxy'], isNull);
 
       final noMtu = wireGuardConfToChain(
-        wgConf.replaceFirst('MTU = 1380\\n', ''),
+        wgConf.replaceFirst('MTU = 1380\n', ''),
       ).link;
       final noMtuProfile = chains(noMtu);
       final d = (await builder(noMtuProfile).buildStandaloneChain(
