@@ -826,6 +826,11 @@ class AppState extends ChangeNotifier {
     if (activeV2rayId != null && status != VpnStatus.disconnected) {
       await VpnChannel.stop();
       await _waitUntilDisconnected();
+      if (status != VpnStatus.disconnected) {
+        error = 'The V2Ray session did not stop; refusing to start another engine.';
+        notifyListeners();
+        return;
+      }
     }
     activeV2rayId = null;
     _connectStartedAt = DateTime.now();
@@ -989,6 +994,15 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> reconnect() async {
+    final v2rayId = activeV2rayId;
+    if (v2rayId != null) {
+      final saved = profile.chains.where((c) => c.id == v2rayId).firstOrNull;
+      if (saved != null) {
+        await connectV2ray(saved);
+        return;
+      }
+      activeV2rayId = null;
+    }
     if (status == VpnStatus.disconnected) return connect();
     // Starting again replaces the running session in the service.
     needsReconnect = false;
