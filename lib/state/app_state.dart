@@ -64,6 +64,7 @@ class AppState extends ChangeNotifier {
   bool smartConnecting = false;
   bool v2raySmartConnecting = false;
   bool v2rayConnecting = false;
+  bool v2rayDisconnecting = false;
   String? v2rayError;
   String? activeV2rayId;
   String? selectedV2rayId;
@@ -909,7 +910,7 @@ class AppState extends ChangeNotifier {
     final wasConnected = status == VpnStatus.connected;
     final sameSession = connectedAt != null && connectedAt == event.connectedAt;
     status = event.status;
-    if (v2rayConnecting || v2raySmartConnecting || activeV2rayId != null) {
+    if (v2rayConnecting || v2rayDisconnecting || v2raySmartConnecting || activeV2rayId != null) {
       v2rayError = event.error;
     } else {
       error = event.error;
@@ -1205,16 +1206,17 @@ class AppState extends ChangeNotifier {
   Future<void> disconnect() async {
     final wasV2ray = activeV2rayId != null;
     if (wasV2ray) {
-      v2rayConnecting = true;
+      v2rayDisconnecting = true;
       notifyListeners();
     }
     activeV2rayId = null;
     v2rayNeedsReconnect = false;
     try {
       await VpnChannel.stop();
+      if (wasV2ray) await _waitUntilDisconnected();
     } finally {
       if (wasV2ray) {
-        v2rayConnecting = false;
+        v2rayDisconnecting = false;
         notifyListeners();
       }
     }
