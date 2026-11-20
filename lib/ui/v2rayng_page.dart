@@ -785,7 +785,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                   FilledButton.icon(
-                    onPressed: _pingAllRunning || state.v2raySmartConnecting || state.smartConnecting || state.isBusy || (state.status != VpnStatus.disconnected && state.activeV2rayId == null) || all.isEmpty
+                    onPressed: _pingAllRunning || state.v2raySmartConnecting || state.smartConnecting || state.isBusy || all.isEmpty
                         ? null
                         : () async {
                             final selected = await state.smartConnectV2ray();
@@ -1125,11 +1125,9 @@ class _V2rayPowerCard extends StatelessWidget {
             ? 'Connecting'
             : state.status == VpnStatus.disconnecting && activeId != null
                 ? 'Disconnecting…'
-                : switchingFromVoidCore
-                    ? 'Switch to V2Ray'
-                    : selectedConfig == null
-                        ? 'Select or import a V2Ray profile'
-                        : 'Disconnected';
+                : selectedConfig == null
+                    ? 'Disconnected'
+                    : 'Disconnected';
     final profileText = activeConfig?.name ?? selectedConfig?.name ?? 'No profile selected';
 
     Future<void> toggle() async {
@@ -1165,13 +1163,10 @@ class _V2rayPowerCard extends StatelessWidget {
             Semantics(
               button: true,
               label: pinging ? 'V2Ray latency test in progress' : connected ? 'Disconnect V2Ray' : 'Connect selected V2Ray profile',
-              child: InkWell(
-                onTap: canTap ? toggle : null,
-                customBorder: const CircleBorder(),
-                child: AnimatedContainer(
+              child: AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
-                  width: 116,
-                  height: 116,
+                  width: 120,
+                  height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
@@ -1187,21 +1182,35 @@ class _V2rayPowerCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: Stack(
-                    alignment: Alignment.center,
+                  child: Material(
+                    type: MaterialType.transparency,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: canTap ? toggle : null,
+                      child: Stack(
+                        alignment: Alignment.center,
                     children: [
                       if (busy || pinging)
                         const SizedBox(
-                          width: 108,
-                          height: 108,
+                          width: 112,
+                          height: 112,
                           child: CircularProgressIndicator(
                             strokeWidth: 3,
                             strokeCap: StrokeCap.round,
                             color: Colors.white,
                           ),
                         ),
-                      Icon(Symbols.power_settings_new_rounded, size: 56, color: iconColor),
+                      AnimatedRotation(
+                        turns: connected || connecting ? 0 : .5,
+                        duration: const Duration(milliseconds: 500),
+                        curve: Curves.easeOutCubic,
+                        child: Icon(Symbols.power_settings_new_rounded, size: 58, color: iconColor),
+                      ),
                     ],
+                  ),
+                    ),
                   ),
                 ),
               ),
