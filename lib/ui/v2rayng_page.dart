@@ -397,6 +397,27 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
     } on FormatException catch (e) { _message(e.message); }
   }
 
+  Future<void> _deleteSelected(List<ChainProxy> configs) async {
+    final targets = configs.where((c) => _selected.contains(c.id)).toList();
+    if (targets.isEmpty) { _message('Select at least one configuration.'); return; }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete selected configurations?'),
+        content: Text('Permanently remove ${targets.length} selected configuration(s) from this device?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Delete all')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final state = AppScope.read(context);
+    for (final config in targets) { state.deleteV2rayConfig(config); }
+    setState(() { _selected.clear(); _selecting = false; });
+    _message('${targets.length} configuration(s) deleted.');
+  }
+
   Future<void> _delete(ChainProxy config) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -458,30 +479,36 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                 const SizedBox(height: 12),
                 Row(children: [
                   FilledButton.icon(
-                    onPressed: state.smartConnecting || state.isBusy || all.isEmpty
+                    onPressed: state.v2raySmartConnecting || state.smartConnecting || state.isBusy || all.isEmpty
                         ? null
                         : () async {
                             final selected = await state.smartConnectV2ray();
                             if (!mounted) return;
                             _message(selected == null
-                                ? (state.smartConnectionStatus ?? 'No suitable V2Ray server found.')
+                                ? (state.v2raySmartConnectionStatus ?? 'No suitable V2Ray server found.')
                                 : 'Connected to ${selected.name}.');
                           },
-                    icon: state.smartConnecting
+                    icon: state.v2raySmartConnecting
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Symbols.bolt_rounded),
-                    label: const Text('Smart Connect'),
+                    label: const Text('V2Ray Smart Connect'),
                   ),
                   const SizedBox(width: 8),
                   OutlinedButton.icon(
-                    onPressed: state.isBusy || state.smartConnecting ? null : _workspaceSettings,
+                    onPressed: state.isBusy || state.smartConnecting || state.v2raySmartConnecting ? null : _workspaceSettings,
                     icon: const Icon(Symbols.settings_rounded),
                     label: const Text('Settings'),
                   ),
                   const SizedBox(width: 10),
-                  if (state.activeV2rayId != null)
+                  if (state.activeV2rayId != null) ...[
                     Text(state.isConnected ? 'V2Ray connected' : 'V2Ray connecting…',
                         style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.primary)),
+                    OutlinedButton.icon(
+                      onPressed: state.isBusy ? null : () async { await state.disconnect(); if (mounted) _message('V2Ray disconnected.'); },
+                      icon: const Icon(Symbols.stop_circle_rounded),
+                      label: const Text('Disconnect'),
+                    ),
+                  ],
                   if (state.v2rayNeedsReconnect && state.activeV2rayId != null)
                     TextButton.icon(
                       onPressed: state.isBusy ? null : state.reconnect,
@@ -493,9 +520,9 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                   const SizedBox(height: 6),
                   Text('V2Ray settings changed · reconnect to apply', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.tertiary)),
                 ],
-                if (state.smartConnectionStatus != null) ...[
+                if (state.v2raySmartConnectionStatus != null) ...[
                   const SizedBox(height: 6),
-                  Text(state.smartConnectionStatus!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  Text(state.v2raySmartConnectionStatus!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                 ],
                 const SizedBox(height: 14),
                 SearchBar(
@@ -525,6 +552,12 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                         }
                       }),
                       child: Text(_selected.length == configs.length ? 'Deselect all' : 'Select all'),
+                    ),
+                  if (_selecting)
+                    TextButton.icon(
+                      onPressed: _selected.isEmpty ? null : () => _deleteSelected(configs),
+                      icon: const Icon(Symbols.delete_outline_rounded),
+                      label: Text('Delete${_selected.isEmpty ? '' : ' (${_selected.length})'}'),
                     ),
                   PopupMenuButton<String>(
                     tooltip: 'Export',
