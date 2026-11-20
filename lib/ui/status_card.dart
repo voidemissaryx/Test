@@ -58,7 +58,7 @@ class _StatusCardState extends State<StatusCard> {
       // Psiphon / Tor say what they're doing: progress while connecting, or reconnecting.
       VpnStatus.connected => (
         'Connected',
-        state.exitDetail ?? 'Tap to disconnect',
+        state.activeV2rayId == null ? (state.exitDetail ?? 'Tap to disconnect') : 'Disconnect from the V2Ray workspace',
       ),
       VpnStatus.connecting => (
         state.connectedAt == null ? 'Connecting' : 'Reconnecting',
@@ -66,7 +66,7 @@ class _StatusCardState extends State<StatusCard> {
       ),
       VpnStatus.disconnecting => ('Disconnecting', 'Stopping the tunnel…'),
       VpnStatus.disconnected when failed => ('Connection failed', state.error!),
-      VpnStatus.disconnected => ('Disconnected', 'Tap to connect'),
+      VpnStatus.disconnected => ('Disconnected', state.activeV2rayId == null ? 'Tap to connect' : 'V2Ray is managed in its workspace'),
     };
     final titleColor = state.isConnected
         ? _green
@@ -478,7 +478,7 @@ class _PowerButtonState extends State<_PowerButton> {
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   // Always tappable: while connecting (Psiphon may search for a long time) it cancels.
-                  onTap: state.toggle,
+                  onTap: state.activeV2rayId == null ? state.toggle : null,
                   onHighlightChanged: (v) => setState(() => _pressed = v),
                   child: Center(
                     child: AnimatedRotation(
