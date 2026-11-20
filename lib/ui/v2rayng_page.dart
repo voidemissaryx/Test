@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -444,37 +445,70 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
   }
 
   Future<void> _importUrl() async {
-    final controller = TextEditingController();
-    final url = await showDialog<String>(
+    final name = TextEditingController();
+    final url = TextEditingController();
+    final result = await showDialog<({String name, String url})>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Add subscription link'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.url,
-          decoration: const InputDecoration(hintText: 'https://example.com/subscription'),
+        title: const Text('Add subscription'),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: name,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Subscription name'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: url,
+                keyboardType: TextInputType.url,
+                decoration: const InputDecoration(
+                  labelText: 'Subscription URL',
+                  hintText: 'https://example.com/subscription',
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Add')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              (name: name.text.trim(), url: url.text.trim()),
+            ),
+            child: const Text('Add'),
+          ),
         ],
       ),
     );
-    controller.dispose();
-    if (url == null || url.isEmpty) return;
-    final uri = Uri.tryParse(url);
-    if (uri == null || !{'http', 'https'}.contains(uri.scheme) || uri.host.isEmpty) {
-      _message('Enter a valid HTTP or HTTPS URL.');
+    name.dispose();
+    url.dispose();
+    if (result == null) return;
+    final uri = Uri.tryParse(result.url);
+    if (result.name.isEmpty ||
+        uri == null ||
+        !{'http', 'https'}.contains(uri.scheme) ||
+        uri.host.isEmpty) {
+      _message('Enter a name and a valid HTTP or HTTPS subscription URL.');
       return;
     }
     final state = AppScope.read(context);
+    if (state.v2raySubscriptions.any((item) => item['url'] == result.url)) {
+      _message('This subscription URL is already saved.');
+      return;
+    }
     final id = newChainId();
-    state.addV2raySubscription(id: id, name: uri.host, url: url);
+    state.addV2raySubscription(id: id, name: result.name, url: result.url);
     final item = state.v2raySubscriptions.firstWhere((entry) => entry['id'] == id);
     await _refreshSubscription(item);
   }
-
 
   Future<void> _editSubscription({Map<String, String>? subscription}) async {
     final name = TextEditingController(text: subscription?['name'] ?? '');
