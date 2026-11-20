@@ -1050,6 +1050,7 @@ class AppState extends ChangeNotifier {
     if (isBusy || (v2raySmartConnecting && !fromSmartConnect) || smartConnecting) return false;
     v2rayConnecting = true;
     v2rayError = null;
+    error = null;
     notifyListeners();
     try {
       if (status != VpnStatus.disconnected) {
@@ -1128,6 +1129,7 @@ class AppState extends ChangeNotifier {
     _cancelV2raySmartConnection = false;
     v2raySmartConnectionStatus = 'Checking servers…';
     v2rayError = null;
+    error = null;
     notifyListeners();
     try {
       // Probe the physical network, not an existing VPN tunnel.
