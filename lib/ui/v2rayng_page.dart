@@ -147,7 +147,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                     if (chosen != null) setDialogState(() => apps = chosen);
                   },
                   icon: const Icon(Symbols.apps_rounded),
-                  label: Text('Choose apps (${state.v2rayPerAppApps.length})'),
+                  label: Text('Choose apps (${apps.length})'),
                 ),
               ),
               const SizedBox(height: 12),
@@ -482,6 +482,12 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                   if (state.activeV2rayId != null)
                     Text(state.isConnected ? 'V2Ray connected' : 'V2Ray connecting…',
                         style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.primary)),
+                  if (state.v2rayNeedsReconnect && state.activeV2rayId != null)
+                    TextButton.icon(
+                      onPressed: state.isBusy ? null : state.reconnect,
+                      icon: const Icon(Symbols.refresh_rounded),
+                      label: const Text('Apply settings'),
+                    ),
                 ]),
                 if (state.v2rayNeedsReconnect) ...[
                   const SizedBox(height: 6),
