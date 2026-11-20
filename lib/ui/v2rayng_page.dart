@@ -95,9 +95,9 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
           ),
       ];
       final state = AppScope.read(context);
-      final before = state.profile.chains.length;
-      state.addChains(configs);
-      final added = state.profile.chains.length - before;
+      final before = state.v2rayConfigs.length;
+      state.addV2rayConfigs(configs);
+      final added = state.v2rayConfigs.length - before;
       _message(added == 0 ? 'These configurations are already imported.' : 'Imported $added configuration(s).');
     } on FormatException catch (e) {
       _message(e.message);
@@ -270,9 +270,9 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
     try {
       final parsed = parseChainProxies(result.link);
       if (parsed.length != 1) throw const FormatException('Enter exactly one configuration link.');
-      final duplicate = AppScope.read(context).profile.chains.any((c) => c.id != config.id && c.link == parsed.single.link);
+      final duplicate = AppScope.read(context).v2rayConfigs.any((c) => c.id != config.id && c.link == parsed.single.link);
       if (duplicate) throw const FormatException('This configuration link is already saved.');
-      AppScope.read(context).updateChain(config.copyWith(
+      AppScope.read(context).updateV2rayConfig(config.copyWith(
         name: result.name,
         link: parsed.single.link,
         category: result.category.isEmpty ? null : result.category,
@@ -294,7 +294,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
         ],
       ),
     );
-    if (confirmed == true && mounted) AppScope.read(context).deleteChain(config);
+    if (confirmed == true && mounted) AppScope.read(context).deleteV2rayConfig(config);
   }
 
   Future<void> _export(List<ChainProxy> configs, {required bool asFile}) async {
@@ -315,7 +315,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final theme = Theme.of(context);
-    final all = state.profile.chains;
+    final all = state.v2rayConfigs;
     final categories = {'All', 'Favorites', ...all.map((c) => c.category).whereType<String>()};
     final query = _search.text.trim().toLowerCase();
     final configs = all.where((c) {
@@ -508,12 +508,12 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                                     : const Icon(Symbols.play_circle_rounded),
                               ),
-                            IconButton(tooltip: config.favorite ? 'Remove favorite' : 'Add favorite', onPressed: () => state.updateChain(config.copyWith(favorite: !config.favorite)), icon: Icon(config.favorite ? Symbols.star_rounded : Symbols.star_outline_rounded, color: config.favorite ? theme.colorScheme.primary : null)),
+                            IconButton(tooltip: config.favorite ? 'Remove favorite' : 'Add favorite', onPressed: () => state.updateV2rayConfig(config.copyWith(favorite: !config.favorite)), icon: Icon(config.favorite ? Symbols.star_rounded : Symbols.star_outline_rounded, color: config.favorite ? theme.colorScheme.primary : null)),
                             PopupMenuButton<String>(
                               onSelected: (value) {
                                 switch (value) {
                                   case 'edit': _edit(config);
-                                  case 'duplicate': state.duplicateChain(config); _message('Configuration duplicated.');
+                                  case 'duplicate': state.duplicateV2rayConfig(config); _message('Configuration duplicated.');
                                   case 'copy': Clipboard.setData(ClipboardData(text: config.link)); _message('Link copied.');
                                   case 'delete': _delete(config);
                                 }
