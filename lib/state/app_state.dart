@@ -342,6 +342,7 @@ class AppState extends ChangeNotifier {
       selectedV2rayId = null;
       _prefs.remove('voidcore.v2ray.selected');
     }
+    if (activeV2rayId == chain.id) unawaited(disconnect());
     write('chains', [
     for (final c in profile.chains)
       if (c.id != chain.id) c.toJson(),
