@@ -55,6 +55,11 @@ class AppState extends ChangeNotifier {
   /// Recent connection attempts; contains metadata only, never configuration payloads.
   List<Map<String, dynamic>> connectionHistory = [];
   List<ChainProxy> v2rayConfigs = [];
+  AppMode v2rayAppMode = AppMode.vpn;
+  PerAppMode v2rayPerAppMode = PerAppMode.off;
+  List<String> v2rayPerAppApps = [];
+  int v2rayMtu = 1500;
+  bool v2rayNeedsReconnect = false;
   bool smartConnecting = false;
   String? activeV2rayId;
   String? selectedV2rayId;
@@ -310,6 +315,28 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateV2raySettings({
+    AppMode? appMode,
+    PerAppMode? perAppMode,
+    List<String>? apps,
+    int? mtu,
+  }) {
+    if (appMode != null) v2rayAppMode = appMode;
+    if (perAppMode != null) v2rayPerAppMode = perAppMode;
+    if (apps != null) v2rayPerAppApps = List.of(apps);
+    if (mtu != null) v2rayMtu = mtu.clamp(576, 9000);
+    _prefs.setString('voidcore.v2ray.settings', jsonEncode({
+      'appMode': v2rayAppMode.name,
+      'perAppMode': v2rayPerAppMode.name,
+      'apps': v2rayPerAppApps,
+      'mtu': v2rayMtu,
+    }));
+    if (activeV2rayId != null && status != VpnStatus.disconnected) {
+      v2rayNeedsReconnect = true;
+    }
+    notifyListeners();
+  }
+
   void _saveV2rayConfigs() {
     _prefs.setString(
       'voidcore.v2ray.configs',
@@ -440,6 +467,11 @@ class AppState extends ChangeNotifier {
         .map(ChainProxy.parse)
         .whereType<ChainProxy>()
         .toList();
+    final v2raySettings = _decodeMap(_prefs.getString('voidcore.v2ray.settings'));
+    v2rayAppMode = AppMode.values.asNameMap()[v2raySettings['appMode']] ?? AppMode.vpn;
+    v2rayPerAppMode = PerAppMode.values.asNameMap()[v2raySettings['perAppMode']] ?? PerAppMode.off;
+    v2rayPerAppApps = (v2raySettings['apps'] as List? ?? const []).map((e) => '$e').toList();
+    v2rayMtu = (v2raySettings['mtu'] as num?)?.toInt() ?? 1500;
     connectionHistory = (_decodeList(_prefs.getString(_kConnectionHistory)))
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
@@ -961,12 +993,13 @@ class AppState extends ChangeNotifier {
       }
       activeV2rayId = config.id;
       selectV2ray(config);
+      v2rayNeedsReconnect = false;
       _connectStartedAt = DateTime.now();
       _connectMode = 'V2Ray · ${config.name}';
       error = null;
       status = VpnStatus.connecting;
       notifyListeners();
-      if (!await VpnChannel.prepare(vpn: !proxyMode)) {
+      if (!await VpnChannel.prepare(vpn: v2rayAppMode == AppMode.vpn)) {
         throw StateError('VPN permission denied');
       }
       final build = await XrayConfigBuilder(profile, device)
@@ -974,11 +1007,11 @@ class AppState extends ChangeNotifier {
       await VpnChannel.start(
         config: build.config,
         remark: 'V2Ray · ${config.name}',
-        perAppMode: device.perAppMode.name,
-        apps: device.perAppApps,
-        mtu: device.mtu,
-        appendHttpProxy: device.appendHttpProxy,
-        proxyOnly: proxyMode,
+        perAppMode: v2rayPerAppMode.name,
+        apps: v2rayPerAppApps,
+        mtu: v2rayMtu,
+        appendHttpProxy: false,
+        proxyOnly: v2rayAppMode == AppMode.proxy,
         verifyConnection: true,
       );
       final connected = await _waitForConnection();
