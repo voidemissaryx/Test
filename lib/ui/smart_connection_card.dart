@@ -24,7 +24,7 @@ class SmartConnectionCard extends StatelessWidget {
             Icon(Symbols.bolt_rounded, color: scheme.primary),
             const SizedBox(width: 8),
             Expanded(child: Text('VOIDCORE Smart Connect', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))),
-            if (state.smartConnecting) const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            if (state.smartConnecting || state.v2raySmartConnecting) const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
           ]),
           const SizedBox(height: 6),
           Text(
@@ -44,7 +44,7 @@ class SmartConnectionCard extends StatelessWidget {
           Row(children: [
             Expanded(
               child: FilledButton.icon(
-                onPressed: state.smartConnecting || state.isBusy || state.availableModes.isEmpty ? null : () => state.smartConnect(),
+                onPressed: state.smartConnecting || state.v2raySmartConnecting || state.isBusy || state.availableModes.isEmpty ? null : () => state.smartConnect(),
                 icon: const Icon(Symbols.speed_rounded),
                 label: const Text('Smart Connect'),
               ),
