@@ -56,6 +56,7 @@ class AppState extends ChangeNotifier {
   List<Map<String, dynamic>> connectionHistory = [];
   bool smartConnecting = false;
   String? activeV2rayId;
+  bool _smartV2rayConnecting = false;
   String? smartConnectionStatus;
   bool _cancelSmartConnection = false;
   DateTime? _sessionStartedAt;
@@ -822,7 +823,7 @@ class AppState extends ChangeNotifier {
       status == VpnStatus.disconnected ? connect() : disconnect();
 
   Future<void> connect() async {
-    if (isBusy || smartConnecting) return;
+    if (isBusy || _smartV2rayConnecting) return;
     if (status != VpnStatus.disconnected) {
       await VpnChannel.stop();
       await _waitUntilDisconnected();
@@ -939,6 +940,7 @@ class AppState extends ChangeNotifier {
   Future<ChainProxy?> smartConnectV2ray() async {
     if ((smartConnecting || isBusy) || profile.chains.isEmpty) return null;
     smartConnecting = true;
+    _smartV2rayConnecting = true;
     smartConnectionStatus = 'Checking V2Ray servers without starting VPN tunnels…';
     error = null;
     notifyListeners();
@@ -984,6 +986,7 @@ class AppState extends ChangeNotifier {
       return null;
     } finally {
       smartConnecting = false;
+      _smartV2rayConnecting = false;
       notifyListeners();
     }
   }
