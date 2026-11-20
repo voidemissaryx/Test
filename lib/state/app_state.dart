@@ -735,7 +735,7 @@ class AppState extends ChangeNotifier {
   Future<bool> _waitForConnection({Duration timeout = const Duration(seconds: 25)}) async {
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
-      if (_cancelSmartConnection) return false;
+      if (_cancelSmartConnection || _cancelV2raySmartConnection) return false;
       if (isConnected) return true;
       if (status == VpnStatus.disconnected && error != null) return false;
       await Future.delayed(const Duration(milliseconds: 300));
