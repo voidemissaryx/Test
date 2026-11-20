@@ -355,6 +355,7 @@ class XrayConfigBuilder {
   /// The Psiphon / Tor type: the exit process connects by itself (the app is outside the VPN),
   /// and the socks outbound to it is the "proxy".
   bool _exitType = false;
+  bool _standaloneV2ray = false;
 
   /// Psiphon or Tor (as an exit or as the type).
   bool get _isExitProcess => _exit == ExitNode.psiphon || _exit == ExitNode.tor;
@@ -442,6 +443,7 @@ class XrayConfigBuilder {
   /// It reuses the same Xray outbound builders as chain proxies, but routes traffic
   /// directly through this outbound instead of dialing it through another VPN.
   Future<XrayBuild> buildStandaloneChain(ChainProxy selected) async {
+    _standaloneV2ray = true;
     _mode = ConnectionMode.worker;
     _exit = ExitNode.chain;
     _exitType = false;
@@ -468,6 +470,7 @@ class XrayConfigBuilder {
     ConnectionMode mode, {
     ConnectionVariant variant = ConnectionVariant.normal,
   }) {
+    _standaloneV2ray = false;
     _exit = exitFor(mode, device, profile.chains);
     _mode = mode;
     _exitType = mode == ConnectionMode.psiphon || mode == ConnectionMode.tor;
@@ -1439,12 +1442,13 @@ class XrayConfigBuilder {
     // back to TCP fast. Psiphon carries UDP (over its udpgw), and the chain proxy is the exit
     // for everything, UDP included.
     final tcpOnly =
-        _exit == ExitNode.tor ||
+        !_standaloneV2ray &&
+        (_exit == ExitNode.tor ||
         (!isServerlessPacket &&
             !isServerlessDns &&
             !isWarp &&
             _exit != ExitNode.psiphon &&
-            _exit != ExitNode.chain);
+            _exit != ExitNode.chain));
     if (tcpOnly) {
       add(network: 'udp', outbound: 'block');
     } else if (profile.routing.block.isOn('quic')) {
