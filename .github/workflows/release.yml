@@ -55,10 +55,7 @@ jobs:
             git checkout --detach "$TAG"
 
             TAG_VERSION=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)
-            if [ "$TAG_VERSION" != "$PUBSPEC_VERSION" ] && [ "$TAG_VERSION" != "$VERSION" ]; then
-              echo "::error::Existing tag $TAG contains pubspec version $TAG_VERSION, not $VERSION"
-              exit 1
-            fi
+            echo "Building existing tag $TAG (tagged pubspec version: ${TAG_VERSION:-unknown}); the existing tag is authoritative."
             echo "EXISTING_TAG=true" >> "$GITHUB_ENV"
           else
             TAG="v$VERSION"
@@ -196,6 +193,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: VOIDCORE ${{ env.VERSION }}
           body_path: RELEASE_NOTES.md
+          overwrite_files: true
           files: |
             dist/*.apk
             dist/SHA256SUMS
