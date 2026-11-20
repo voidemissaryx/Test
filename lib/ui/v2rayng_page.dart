@@ -489,7 +489,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                       label: const Text('Apply settings'),
                     ),
                 ]),
-                if (state.v2rayNeedsReconnect) ...[
+                if (state.v2rayNeedsReconnect && state.activeV2rayId != null) ...[
                   const SizedBox(height: 6),
                   Text('V2Ray settings changed · reconnect to apply', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.tertiary)),
                 ],
