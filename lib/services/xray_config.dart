@@ -463,7 +463,10 @@ class XrayConfigBuilder {
     final stream = outbound['streamSettings'];
     if (stream is Map) {
       final sockopt = stream['sockopt'];
-      if (sockopt is Map) sockopt.remove('dialerProxy');
+      if (sockopt is Map) {
+        sockopt.remove('dialerProxy');
+        if (sockopt.isEmpty) stream.remove('sockopt');
+      }
     }
     _exit = ExitNode.worker;
     final config = await _buildConfig(
@@ -1448,9 +1451,8 @@ class XrayConfigBuilder {
     add(ip: bypassIps, outbound: 'direct');
 
     if (_hasExit) rules.insertAll(0, exitWorkerlessRules);
-    // The worker and Tor only carry TCP (the worker also DNS); refuse other UDP so apps fall
-    // back to TCP fast. Psiphon carries UDP (over its udpgw), and the chain proxy is the exit
-    // for everything, UDP included.
+    // Worker and Tor modes are TCP-only. Standalone V2Ray profiles can carry UDP according
+    // to their protocol; Psiphon and chain exits can also carry UDP.
     final tcpOnly =
         !_standaloneV2ray &&
         (_exit == ExitNode.tor ||
