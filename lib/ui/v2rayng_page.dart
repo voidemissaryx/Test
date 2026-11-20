@@ -785,7 +785,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                   FilledButton.icon(
-                    onPressed: _pingAllRunning || state.v2raySmartConnecting || state.smartConnecting || state.isBusy || all.isEmpty
+                    onPressed: _pingAllRunning || state.v2raySmartConnecting || state.smartConnecting || state.isBusy || (state.status != VpnStatus.disconnected && state.activeV2rayId == null) || all.isEmpty
                         ? null
                         : () async {
                             final selected = await state.smartConnectV2ray();
