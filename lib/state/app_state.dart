@@ -63,6 +63,8 @@ class AppState extends ChangeNotifier {
   bool v2rayNeedsReconnect = false;
   bool smartConnecting = false;
   bool v2raySmartConnecting = false;
+  bool v2rayConnecting = false;
+  String? v2rayError;
   String? activeV2rayId;
   String? selectedV2rayId;
   bool _smartV2rayConnecting = false;
@@ -907,7 +909,11 @@ class AppState extends ChangeNotifier {
     final wasConnected = status == VpnStatus.connected;
     final sameSession = connectedAt != null && connectedAt == event.connectedAt;
     status = event.status;
-    error = event.error;
+    if (v2rayConnecting || v2raySmartConnecting || activeV2rayId != null) {
+      v2rayError = event.error;
+    } else {
+      error = event.error;
+    }
     connectedAt = event.connectedAt;
 
     if (event.status == VpnStatus.connected && !wasConnected) {
@@ -1041,6 +1047,9 @@ class AppState extends ChangeNotifier {
   /// Any existing engine is stopped first, so only one tunnel can own the VPN interface.
   Future<bool> connectV2ray(ChainProxy config, {bool fromSmartConnect = false}) async {
     if (isBusy || (v2raySmartConnecting && !fromSmartConnect) || smartConnecting) return false;
+    v2rayConnecting = true;
+    v2rayError = null;
+    notifyListeners();
     try {
       if (status != VpnStatus.disconnected) {
         await VpnChannel.stop();
@@ -1054,7 +1063,6 @@ class AppState extends ChangeNotifier {
       v2rayNeedsReconnect = false;
       _connectStartedAt = DateTime.now();
       _connectMode = 'V2Ray · ${config.name}';
-      error = null;
       status = VpnStatus.connecting;
       notifyListeners();
       if (!await VpnChannel.prepare(vpn: v2rayAppMode == AppMode.vpn)) {
@@ -1091,7 +1099,7 @@ class AppState extends ChangeNotifier {
       }
       activeV2rayId = null;
       status = VpnStatus.disconnected;
-      error = e is StateError ? e.message : '$e';
+      v2rayError = e is StateError ? e.message : '$e';
       if (_connectStartedAt != null) {
         _saveHistory(
           mode: _connectMode ?? 'V2Ray',
@@ -1104,6 +1112,9 @@ class AppState extends ChangeNotifier {
       }
       notifyListeners();
       return false;
+    } finally {
+      v2rayConnecting = false;
+      notifyListeners();
     }
   }
 
@@ -1115,7 +1126,7 @@ class AppState extends ChangeNotifier {
     _smartV2rayConnecting = true;
     _cancelV2raySmartConnection = false;
     v2raySmartConnectionStatus = 'Checking servers…';
-    error = null;
+    v2rayError = null;
     notifyListeners();
     try {
       // Probe the physical network, not an existing VPN tunnel.
