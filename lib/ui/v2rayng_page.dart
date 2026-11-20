@@ -59,6 +59,63 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
 
+  Future<void> _workspaceSettings() async {
+    final state = AppScope.read(context);
+    var appMode = state.v2rayAppMode;
+    var perAppMode = state.v2rayPerAppMode;
+    var mtu = state.v2rayMtu;
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('V2Ray workspace settings'),
+          content: SizedBox(
+            width: 420,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              DropdownButtonFormField<AppMode>(
+                value: appMode,
+                decoration: const InputDecoration(labelText: 'Connection mode'),
+                items: const [
+                  DropdownMenuItem(value: AppMode.vpn, child: Text('VPN (all device traffic)')),
+                  DropdownMenuItem(value: AppMode.proxy, child: Text('Local proxy only')),
+                ],
+                onChanged: (value) { if (value != null) setDialogState(() => appMode = value); },
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<PerAppMode>(
+                value: perAppMode,
+                decoration: const InputDecoration(labelText: 'Per-app mode'),
+                items: const [
+                  DropdownMenuItem(value: PerAppMode.off, child: Text('Off')),
+                  DropdownMenuItem(value: PerAppMode.include, child: Text('Include selected apps')),
+                  DropdownMenuItem(value: PerAppMode.exclude, child: Text('Exclude selected apps')),
+                ],
+                onChanged: (value) { if (value != null) setDialogState(() => perAppMode = value); },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                initialValue: '$mtu',
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'MTU', helperText: 'Allowed range: 576–9000'),
+                onChanged: (value) { final parsed = int.tryParse(value); if (parsed != null) mtu = parsed.clamp(576, 9000).toInt(); },
+              ),
+              const SizedBox(height: 8),
+              Text('These settings are saved separately and do not change the main VPN modes.', style: Theme.of(dialogContext).textTheme.bodySmall),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Save')),
+          ],
+        ),
+      ),
+    );
+    if (save == true && mounted) {
+      state.updateV2raySettings(appMode: appMode, perAppMode: perAppMode, mtu: mtu);
+      _message('V2Ray workspace settings saved.');
+    }
+  }
+
   String _decodeSubscription(String text) {
     final trimmed = text.trim();
     try {
@@ -357,11 +414,21 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                         : const Icon(Symbols.bolt_rounded),
                     label: const Text('Smart Connect'),
                   ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: state.isBusy || state.smartConnecting ? null : _workspaceSettings,
+                    icon: const Icon(Symbols.settings_rounded),
+                    label: const Text('Settings'),
+                  ),
                   const SizedBox(width: 10),
                   if (state.activeV2rayId != null)
                     Text(state.isConnected ? 'V2Ray connected' : 'V2Ray connecting…',
                         style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.primary)),
                 ]),
+                if (state.v2rayNeedsReconnect) ...[
+                  const SizedBox(height: 6),
+                  Text('V2Ray settings changed · reconnect to apply', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.tertiary)),
+                ],
                 if (state.smartConnectionStatus != null) ...[
                   const SizedBox(height: 6),
                   Text(state.smartConnectionStatus!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
