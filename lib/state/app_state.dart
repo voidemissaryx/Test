@@ -61,11 +61,14 @@ class AppState extends ChangeNotifier {
   int v2rayMtu = 1500;
   bool v2rayNeedsReconnect = false;
   bool smartConnecting = false;
+  bool v2raySmartConnecting = false;
   String? activeV2rayId;
   String? selectedV2rayId;
   bool _smartV2rayConnecting = false;
   String? smartConnectionStatus;
+  String? v2raySmartConnectionStatus;
   bool _cancelSmartConnection = false;
+  bool _cancelV2raySmartConnection = false;
   DateTime? _sessionStartedAt;
   String? _sessionMode;
   int? _sessionPing;
@@ -723,6 +726,12 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void cancelV2raySmartConnect() {
+    _cancelV2raySmartConnection = true;
+    v2raySmartConnectionStatus = 'Cancelling…';
+    notifyListeners();
+  }
+
   Future<bool> _waitForConnection({Duration timeout = const Duration(seconds: 25)}) async {
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
@@ -763,7 +772,7 @@ class AppState extends ChangeNotifier {
   /// Tests only connection modes configured in this installation, then reconnects using
   /// the lowest measured tunnel latency. Each candidate is tested through the real VPN engine.
   Future<ConnectionMode?> smartConnect() async {
-    if (smartConnecting || isBusy) return null;
+    if (smartConnecting || v2raySmartConnecting || isBusy) return null;
     smartConnecting = true;
     _cancelSmartConnection = false;
     smartConnectionStatus = 'Preparing connection tests…';
@@ -1001,7 +1010,7 @@ class AppState extends ChangeNotifier {
   /// Starts a saved V2Ray workspace profile using the shared Xray/VPN service.
   /// Any existing engine is stopped first, so only one tunnel can own the VPN interface.
   Future<bool> connectV2ray(ChainProxy config, {bool fromSmartConnect = false}) async {
-    if (isBusy || (smartConnecting && !fromSmartConnect)) return false;
+    if (isBusy || (v2raySmartConnecting && !fromSmartConnect) || smartConnecting) return false;
     try {
       if (status != VpnStatus.disconnected) {
         await VpnChannel.stop();
@@ -1071,11 +1080,11 @@ class AppState extends ChangeNotifier {
   /// Probes TCP-capable V2Ray endpoints without creating VPN tunnels, then connects
   /// to the lowest-latency candidate. A failed real connection falls through to the next.
   Future<ChainProxy?> smartConnectV2ray() async {
-    if ((smartConnecting || isBusy) || v2rayConfigs.isEmpty) return null;
-    smartConnecting = true;
+    if ((smartConnecting || v2raySmartConnecting || isBusy) || v2rayConfigs.isEmpty) return null;
+    v2raySmartConnecting = true;
     _smartV2rayConnecting = true;
-    _cancelSmartConnection = false;
-    smartConnectionStatus = 'Checking V2Ray servers without starting VPN tunnels…';
+    _cancelV2raySmartConnection = false;
+    v2raySmartConnectionStatus = 'Checking V2Ray servers without starting VPN tunnels…';
     error = null;
     notifyListeners();
     try {
@@ -1090,14 +1099,14 @@ class AppState extends ChangeNotifier {
       final measured = <({ChainProxy config, int latency})>[];
       var skippedUdpOnly = 0;
       for (final config in v2rayConfigs) {
-        if (_cancelSmartConnection) break;
+        if (_cancelV2raySmartConnection) break;
         final info = ChainInfo.of(config.link);
         if (info == null) continue;
         if (info.isUdp) {
           skippedUdpOnly++;
           continue;
         }
-        smartConnectionStatus = 'Checking ${config.name}…';
+        v2raySmartConnectionStatus = 'Checking ${config.name}…';
         notifyListeners();
         try {
           final watch = Stopwatch()..start();
@@ -1113,41 +1122,41 @@ class AppState extends ChangeNotifier {
           // An unreachable TCP endpoint is excluded; no synthetic ping is reported.
         }
       }
-      if (_cancelSmartConnection) {
-        smartConnectionStatus = 'Smart Connect cancelled';
+      if (_cancelV2raySmartConnection) {
+        v2raySmartConnectionStatus = 'Smart Connect cancelled';
         return null;
       }
       measured.sort((a, b) => a.latency.compareTo(b.latency));
       if (measured.isEmpty) {
-        smartConnectionStatus = skippedUdpOnly > 0
+        v2raySmartConnectionStatus = skippedUdpOnly > 0
             ? 'No TCP-reachable server found; skipped $skippedUdpOnly UDP-only profile(s) because they cannot be measured with a direct TCP probe.'
             : 'No TCP-reachable V2Ray server was found';
         return null;
       }
       for (final candidate in measured) {
-        if (_cancelSmartConnection) break;
-        smartConnectionStatus = 'Connecting to ${candidate.config.name} · ${candidate.latency} ms…';
+        if (_cancelV2raySmartConnection) break;
+        v2raySmartConnectionStatus = 'Connecting to ${candidate.config.name} · ${candidate.latency} ms…';
         notifyListeners();
         if (await connectV2ray(candidate.config, fromSmartConnect: true)) {
-          smartConnectionStatus = 'Connected · ${candidate.config.name} · ${candidate.latency} ms';
+          v2raySmartConnectionStatus = 'Connected · ${candidate.config.name} · ${candidate.latency} ms';
           return candidate.config;
         }
-        if (_cancelSmartConnection) break;
+        if (_cancelV2raySmartConnection) break;
         if (status != VpnStatus.disconnected) {
           await VpnChannel.stop();
           await _waitUntilDisconnected();
         }
       }
-      if (_cancelSmartConnection) {
-        smartConnectionStatus = 'Smart Connect cancelled';
+      if (_cancelV2raySmartConnection) {
+        v2raySmartConnectionStatus = 'Smart Connect cancelled';
         return null;
       }
-      smartConnectionStatus = 'All reachable V2Ray servers failed to connect';
+      v2raySmartConnectionStatus = 'All reachable V2Ray servers failed to connect';
       return null;
     } finally {
-      smartConnecting = false;
+      v2raySmartConnecting = false;
       _smartV2rayConnecting = false;
-      _cancelSmartConnection = false;
+      _cancelV2raySmartConnection = false;
       notifyListeners();
     }
   }
