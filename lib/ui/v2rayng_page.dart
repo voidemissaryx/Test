@@ -451,7 +451,11 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: Card(
-                      color: state.activeV2rayId == config.id && state.isConnected ? theme.colorScheme.primaryContainer : null,
+                      color: state.activeV2rayId == config.id && state.isConnected
+                          ? theme.colorScheme.primaryContainer
+                          : state.selectedV2rayId == config.id
+                              ? theme.colorScheme.secondaryContainer
+                              : null,
                       margin: EdgeInsets.zero,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
@@ -460,7 +464,9 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                             Checkbox(value: selected, onChanged: (v) => setState(() { if (v == true) { _selected.add(config.id); } else { _selected.remove(config.id); } })),
                           Expanded(child: InkWell(
                             borderRadius: BorderRadius.circular(12),
-                            onTap: _selecting ? () => setState(() { if (selected) { _selected.remove(config.id); } else { _selected.add(config.id); } }) : null,
+                            onTap: _selecting
+                                ? () => setState(() { if (selected) { _selected.remove(config.id); } else { _selected.add(config.id); } })
+                                : () => state.selectV2ray(config),
                             child: Padding(
                               padding: const EdgeInsets.all(8),
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
