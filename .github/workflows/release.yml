@@ -34,6 +34,13 @@ jobs:
 
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
+      - name: Debug checkout and donation files
+        run: |
+          echo "Branch: $GITHUB_REF"
+          echo "Commit: $(git rev-parse HEAD)"
+          echo "Donation files:"
+          find test lib -iname '*donat*' -print
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
