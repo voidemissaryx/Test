@@ -965,6 +965,7 @@ class AppState extends ChangeNotifier {
     if ((smartConnecting || isBusy) || profile.chains.isEmpty) return null;
     smartConnecting = true;
     _smartV2rayConnecting = true;
+    _cancelSmartConnection = false;
     smartConnectionStatus = 'Checking V2Ray servers without starting VPN tunnels…';
     error = null;
     notifyListeners();
@@ -979,6 +980,7 @@ class AppState extends ChangeNotifier {
       }
       final measured = <({ChainProxy config, int latency})>[];
       for (final config in profile.chains) {
+        if (_cancelSmartConnection) break;
         final info = ChainInfo.of(config.link);
         if (info == null || info.isUdp) continue;
         smartConnectionStatus = 'Checking ${config.name}…';
@@ -997,28 +999,39 @@ class AppState extends ChangeNotifier {
           // An unreachable TCP endpoint is excluded; no synthetic ping is reported.
         }
       }
+      if (_cancelSmartConnection) {
+        smartConnectionStatus = 'Smart Connect cancelled';
+        return null;
+      }
       measured.sort((a, b) => a.latency.compareTo(b.latency));
       if (measured.isEmpty) {
         smartConnectionStatus = 'No TCP-reachable V2Ray server was found';
         return null;
       }
       for (final candidate in measured) {
+        if (_cancelSmartConnection) break;
         smartConnectionStatus = 'Connecting to ${candidate.config.name} · ${candidate.latency} ms…';
         notifyListeners();
         if (await connectV2ray(candidate.config, fromSmartConnect: true)) {
           smartConnectionStatus = 'Connected · ${candidate.config.name} · ${candidate.latency} ms';
           return candidate.config;
         }
+        if (_cancelSmartConnection) break;
         if (status != VpnStatus.disconnected) {
           await VpnChannel.stop();
           await _waitUntilDisconnected();
         }
+      }
+      if (_cancelSmartConnection) {
+        smartConnectionStatus = 'Smart Connect cancelled';
+        return null;
       }
       smartConnectionStatus = 'All reachable V2Ray servers failed to connect';
       return null;
     } finally {
       smartConnecting = false;
       _smartV2rayConnecting = false;
+      _cancelSmartConnection = false;
       notifyListeners();
     }
   }
