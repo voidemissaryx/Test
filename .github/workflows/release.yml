@@ -6,10 +6,12 @@
 name: Release
 
 on:
-  push:
-    tags: ['v*']
-
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.4.0)'
+        required: true
+        type: string
 permissions:
   contents: write
 
@@ -40,6 +42,32 @@ jobs:
           fi
 
           echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Create and push release tag
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version format. Example: 1.4.0"
+            exit 1
+          fi
+
+          if [ "$VERSION" != "$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)" ]; then
+            echo "::error::Version does not match pubspec.yaml"
+            exit 1
+          fi
+
+          TAG="v$VERSION"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists"
+            exit 1
+          fi
+
+          git tag "$TAG"
+          git push origin "$TAG"
+
+          echo "Created tag: $TAG"
 
       - uses: actions/setup-java@v4
         with:
@@ -148,9 +176,11 @@ jobs:
       - name: Generate APK SHA-256 checksums
         run: sha256sum dist/voidcore-*.apk > dist/SHA256SUMS
 
-      - uses: softprops/action-gh-release@v2
+      - name: Publish GitHub Release and create tag
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION }}
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
           name: VOIDCORE ${{ env.VERSION }}
           body_path: RELEASE_NOTES.md
           files: |
