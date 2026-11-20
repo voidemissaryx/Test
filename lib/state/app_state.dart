@@ -360,9 +360,13 @@ class AppState extends ChangeNotifier {
       if (selectedV2rayId == config.id) selectedV2rayId = null;
     }
     v2rayConfigs = v2rayConfigs.where((config) => config.category != category).toList();
-    if (selectedV2rayId == null && v2rayConfigs.isNotEmpty) {
-      selectedV2rayId = v2rayConfigs.first.id;
-      _prefs.setString('voidcore.v2ray.selected', selectedV2rayId!);
+    if (selectedV2rayId == null) {
+      if (v2rayConfigs.isNotEmpty) {
+        selectedV2rayId = v2rayConfigs.first.id;
+        _prefs.setString('voidcore.v2ray.selected', selectedV2rayId!);
+      } else {
+        _prefs.remove('voidcore.v2ray.selected');
+      }
     }
     _saveV2rayConfigs();
     _saveV2raySubscriptions();
