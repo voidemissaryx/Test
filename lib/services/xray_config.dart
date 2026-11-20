@@ -300,11 +300,9 @@ class XrayConfigBuilder {
         node == ExitNode.tor) {
       return ExitNode.worker;
     }
-    if (node == ExitNode.chain &&
-        (mode == ConnectionMode.serverless ||
-            chainFor(mode, device, chains) == null)) {
-      return ExitNode.worker;
-    }
+    // Chain Proxy is no longer exposed by the VOIDCORE workspace; keep legacy
+    // selections from silently routing new VOIDCORE sessions through a chain.
+    if (node == ExitNode.chain) return ExitNode.worker;
     return node;
   }
 
