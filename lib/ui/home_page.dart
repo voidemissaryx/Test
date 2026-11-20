@@ -75,7 +75,8 @@ class _HomePageState extends State<HomePage> {
           icon: const Icon(Symbols.menu_rounded),
           onPressed: () => Scaffold.of(context).openDrawer(),
         )),
-        title: Text(_section == _AppSection.voidCore ? 'VOIDCORE' : 'V2rayNG', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+        centerTitle: _section == _AppSection.v2rayNg,
+        title: Text(_section == _AppSection.voidCore ? 'VOIDCORE' : 'V2Ray', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
         actions: _section == _AppSection.voidCore ? [
           ChipMenu(values: AppMode.values, selected: state.device.appMode, label: (v) => v == AppMode.proxy ? 'Proxy mode' : 'VPN mode', onSelected: state.setAppMode, enabled: !state.isBusy),
           const SizedBox(width: 4),
