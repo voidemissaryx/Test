@@ -58,7 +58,7 @@ class _HomePageState extends State<HomePage> {
                 onTap: () { setState(() => _section = _AppSection.voidCore); Navigator.pop(context); },
               ),
               _WorkspaceButton(
-                title: 'V2Ray',
+                title: 'V2RayNG',
                 subtitle: 'Independent profile manager',
                 icon: Symbols.hub_rounded,
                 selected: _section == _AppSection.v2rayNg,
@@ -76,7 +76,7 @@ class _HomePageState extends State<HomePage> {
           onPressed: () => Scaffold.of(context).openDrawer(),
         )),
         centerTitle: _section == _AppSection.v2rayNg,
-        title: Text(_section == _AppSection.voidCore ? 'VOIDCORE' : 'V2Ray', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(_section == _AppSection.voidCore ? 'VOIDCORE' : 'V2RayNG', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
         actions: _section == _AppSection.voidCore ? [
           ChipMenu(values: AppMode.values, selected: state.device.appMode, label: (v) => v == AppMode.proxy ? 'Proxy mode' : 'VPN mode', onSelected: state.setAppMode, enabled: !state.isBusy),
           const SizedBox(width: 4),
