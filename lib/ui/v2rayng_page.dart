@@ -31,6 +31,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
   bool _pingAllRunning = false;
   bool _cancelPingAll = false;
   int _pingAllProgress = 0;
+  int _pingAllTotal = 0;
   String _sortMode = 'default';
 
   Future<int?> _measureTcpLatency(ChainProxy config) async {
@@ -88,10 +89,12 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
       _message('Disconnect the active connection before running Ping All.');
       return;
     }
+    final targets = List<ChainProxy>.of(configs);
     setState(() {
       _pingAllRunning = true;
       _cancelPingAll = false;
       _pingAllProgress = 0;
+      _pingAllTotal = targets.length;
       _probing.clear();
     });
     var reachable = 0;
@@ -100,9 +103,9 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
     var invalid = 0;
     try {
       // Small batches avoid opening too many sockets on mobile devices at once.
-      for (var offset = 0; offset < configs.length; offset += 8) {
+      for (var offset = 0; offset < targets.length; offset += 8) {
         if (_cancelPingAll) break;
-        final batch = configs.skip(offset).take(8).toList();
+        final batch = targets.skip(offset).take(8).toList();
         if (mounted) setState(() => _probing.addAll(batch.map((c) => c.id)));
         final results = await Future.wait(batch.map((config) async {
           final info = ChainInfo.of(config.link);
@@ -137,7 +140,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
       }
       if (!mounted) return;
       _message(_cancelPingAll
-          ? 'Ping All cancelled · $reachable reachable, $unreachable unreachable.'
+          ? 'Ping All cancelled · $reachable reachable, $unreachable unreachable, $udpSkipped UDP-only skipped.'
           : 'Ping All complete · $reachable reachable, $unreachable unreachable, $udpSkipped UDP-only skipped, $invalid invalid.');
     } finally {
       if (mounted) {
@@ -647,11 +650,13 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                 if (_pingAllRunning) ...[
                   const SizedBox(height: 8),
                   LinearProgressIndicator(
-                    value: all.isEmpty ? null : _pingAllProgress / all.length,
+                    value: _pingAllTotal == 0
+                        ? null
+                        : (_pingAllProgress / _pingAllTotal).clamp(0.0, 1.0).toDouble(),
                     minHeight: 4,
                   ),
                   const SizedBox(height: 4),
-                  Text('Testing servers · $_pingAllProgress / ${all.length}', style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  Text('Testing servers · $_pingAllProgress / $_pingAllTotal', style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                 ],
                 if (state.v2rayNeedsReconnect && state.activeV2rayId != null) ...[
                   const SizedBox(height: 6),
