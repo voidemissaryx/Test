@@ -83,6 +83,13 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
         _message('Latency test discarded because a VPN connection started.');
         return;
       }
+      final current = state.v2rayConfigs
+          .where((saved) => saved.id == config.id)
+          .firstOrNull;
+      if (current?.link != config.link) {
+        _message('Latency result discarded because the profile changed.');
+        return;
+      }
       setState(() => _latencies[config.id] = latency ?? -1);
       _message(latency == null || latency < 0
           ? '${config.name}: server is not reachable over TCP.'
@@ -140,13 +147,13 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
         final results = await Future.wait(batch.map((config) async {
           final info = ChainInfo.of(config.link);
           if (info == null) {
-            return (id: config.id, latency: -1, udp: false, invalid: true);
+            return (id: config.id, link: config.link, latency: -1, udp: false, invalid: true);
           }
           if (info.isUdp) {
-            return (id: config.id, latency: -1, udp: true, invalid: false);
+            return (id: config.id, link: config.link, latency: -1, udp: true, invalid: false);
           }
           final latency = await _measureTcpLatency(config);
-          return (id: config.id, latency: latency ?? -1, udp: false, invalid: false);
+          return (id: config.id, link: config.link, latency: latency ?? -1, udp: false, invalid: false);
         }));
 
         if (!mounted) return;
@@ -160,8 +167,13 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
         setState(() {
           for (final result in results) {
             _probing.remove(result.id);
+            final current = state.v2rayConfigs
+                .where((saved) => saved.id == result.id)
+                .firstOrNull;
+            if (current?.link != result.link) continue;
             if (result.udp) {
               udpSkipped++;
+              _latencies.remove(result.id);
             } else if (result.invalid) {
               invalid++;
               _latencies[result.id] = -1;
@@ -540,6 +552,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
         category: result.category.isEmpty ? null : result.category,
         clearCategory: result.category.isEmpty,
       ));
+      _latencies.remove(config.id);
       _message('Configuration updated.');
     } on FormatException catch (e) { _message(e.message); }
   }
@@ -859,7 +872,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                                       ? 'Unsupported configuration'
                                       : info.isUdp
                                           ? '${info.address} · UDP · TCP ping unavailable'
-                                          : '${info.address}$latencyLabel',
+                                          : info.address,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
@@ -867,6 +880,23 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                                 const SizedBox(height: 7),
                                 Wrap(spacing: 5, runSpacing: 4, children: [
                                   for (final tag in info?.tags ?? const ['Invalid']) Chip(label: Text(tag), visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+                                  if (info != null) Chip(
+                                    label: Text(info.isUdp ? 'UDP · TCP test N/A' : 'TCP'),
+                                    visualDensity: VisualDensity.compact,
+                                    padding: EdgeInsets.zero,
+                                  ),
+                                  if (latency != null) Chip(
+                                    avatar: Icon(
+                                      latency < 0 ? Symbols.error_outline_rounded : Symbols.network_ping_rounded,
+                                      size: 14,
+                                    ),
+                                    label: Text(latency < 0 ? 'Timeout' : '${latency} ms'),
+                                    backgroundColor: (latency < 0
+                                        ? theme.colorScheme.errorContainer
+                                        : theme.colorScheme.primaryContainer).withValues(alpha: .65),
+                                    visualDensity: VisualDensity.compact,
+                                    padding: EdgeInsets.zero,
+                                  ),
                                   if (config.category != null) Chip(label: Text(config.category!), visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
                                 ]),
                               ]),
