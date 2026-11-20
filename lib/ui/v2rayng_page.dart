@@ -837,11 +837,6 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                   final config = configs[index];
                   final info = ChainInfo.of(config.link);
                   final latency = _latencies[config.id];
-                  final latencyLabel = latency == null
-                      ? ''
-                      : latency < 0
-                          ? ' · Timeout'
-                          : ' · ${latency} ms TCP';
                   final selected = _selected.contains(config.id);
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -868,11 +863,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                                 Text(config.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                                 const SizedBox(height: 3),
                                 Text(
-                                  info == null
-                                      ? 'Unsupported configuration'
-                                      : info.isUdp
-                                          ? '${info.address} · UDP · TCP ping unavailable'
-                                          : info.address,
+                                  info == null ? 'Unsupported configuration' : info.address,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
