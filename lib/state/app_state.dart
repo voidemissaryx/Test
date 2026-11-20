@@ -13,6 +13,7 @@ import '../models/cf_account.dart';
 import '../models/settings.dart';
 import '../models/theme_color.dart';
 import '../services/cloudflare_api.dart';
+import '../services/chain_proxy.dart';
 import '../services/geo_assets.dart';
 import '../services/local_proxy.dart';
 import '../services/masque.dart';
@@ -33,7 +34,7 @@ class AppState extends ChangeNotifier {
   static const _kProfile = 'profile';
   static const _kDevice = 'device';
   static const _kSecretAccounts = 'cloudflareAccounts';
-  static const _kConnectionHistory = 'voidcore.connection.history.v1';
+  static const _kConnectionHistory = 'voidcore.connectionHistory';
 
   late SharedPreferences _prefs;
   final _secrets = const FlutterSecureStorage();
@@ -50,6 +51,17 @@ class AppState extends ChangeNotifier {
   /// Cloudflare accounts saved on this device, each with the deployments this install made in
   /// it (secret: tokens and UUIDs).
   List<SavedCfAccount> cfAccounts = [];
+
+  /// Recent connection attempts; contains metadata only, never configuration payloads.
+  List<Map<String, dynamic>> connectionHistory = [];
+  bool smartConnecting = false;
+  String? smartConnectionStatus;
+  bool _cancelSmartConnection = false;
+  DateTime? _sessionStartedAt;
+  String? _sessionMode;
+  int? _sessionPing;
+  DateTime? _connectStartedAt;
+  String? _connectMode;
 
   /// Every deployment of the accounts in use: those with both Workers and Pages deployed.
   List<({SavedCfAccount account, Deployment deployment})> get deployments => [
@@ -127,41 +139,6 @@ class AppState extends ChangeNotifier {
   VpnStatus status = VpnStatus.disconnected;
   String? error;
   DateTime? connectedAt;
-
-  /// Recent connection attempts, with no configuration payloads or credentials.
-  List<Map<String, dynamic>> connectionHistory = [];
-  DateTime? _historyAttemptStartedAt;
-  DateTime? _historyConnectedAt;
-  String? _historyAttemptMode;
-
-  void clearConnectionHistory() {
-    connectionHistory.clear();
-    _prefs.remove(_kConnectionHistory);
-    notifyListeners();
-  }
-
-  void _recordConnectionHistory({required bool success, String? failure, int? latency}) {
-    final started = _historyAttemptStartedAt;
-    if (started == null) return;
-    final ended = DateTime.now();
-    connectionHistory.insert(0, {
-      'mode': _historyAttemptMode ?? mode.label,
-      'time': started.toLocal().toIso8601String(),
-      'duration': success && _historyConnectedAt != null
-          ? ended.difference(_historyConnectedAt!).inSeconds
-          : 0,
-      'success': success,
-      'latency': latency,
-      'failure': success ? null : failure,
-    });
-    if (connectionHistory.length > 100) {
-      connectionHistory = connectionHistory.take(100).toList();
-    }
-    _historyAttemptStartedAt = null;
-    _historyConnectedAt = null;
-    _historyAttemptMode = null;
-    _prefs.setString(_kConnectionHistory, jsonEncode(connectionHistory));
-  }
 
   /// Settings changed while connected; reconnect to apply them.
   bool needsReconnect = false;
@@ -323,17 +300,36 @@ class AppState extends ChangeNotifier {
       write('device.exit.chains.${mode.name}', chain.id);
 
   /// Adds chain proxies (Settings → Chain proxies).
-  void addChains(List<ChainProxy> chains) => write('chains', [
-    for (final c in [...profile.chains, ...chains]) c.toJson(),
+  void addChains(List<ChainProxy> chains) {
+    final existing = profile.chains.map((c) => c.link).toSet();
+    final added = <ChainProxy>[];
+    for (final chain in chains) {
+      if (existing.add(chain.link)) added.add(chain);
+    }
+    if (added.isNotEmpty) {
+      write('chains', [...profile.chains, ...added].map((c) => c.toJson()).toList());
+    }
+  }
+
+  void updateChain(ChainProxy updated) => write('chains', [
+    for (final c in profile.chains)
+      (c.id == updated.id ? updated : c).toJson(),
   ]);
+
+  void duplicateChain(ChainProxy chain) {
+    final duplicate = ChainProxy(
+      id: newChainId(),
+      name: '${chain.name} (copy)',
+      link: chain.link,
+      favorite: false,
+      category: chain.category,
+    );
+    write('chains', [...profile.chains, duplicate].map((c) => c.toJson()).toList());
+  }
 
   void deleteChain(ChainProxy chain) => write('chains', [
     for (final c in profile.chains)
       if (c.id != chain.id) c.toJson(),
-  ]);
-
-  void updateChain(ChainProxy chain) => write('chains', [
-    for (final c in profile.chains) c.id == chain.id ? chain.toJson() : c.toJson(),
   ]);
 
   /// [region]: an exitRegions code, or empty for the fastest (any region).
@@ -372,17 +368,10 @@ class AppState extends ChangeNotifier {
     _stored = Profile.fromJson(_decodeMap(_prefs.getString(_kProfile)))
         .updated('vless', null);
     device = DeviceSettings.fromJson(_decodeMap(_prefs.getString(_kDevice)));
-    try {
-      final rawHistory = _prefs.getString(_kConnectionHistory);
-      if (rawHistory != null) {
-        connectionHistory = (jsonDecode(rawHistory) as List)
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList();
-      }
-    } catch (_) {
-      connectionHistory = [];
-    }
+    connectionHistory = (_decodeList(_prefs.getString(_kConnectionHistory)))
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
     if (_prefs.containsKey('configOverrides')) {
       await _prefs.remove('configOverrides');
     }
@@ -411,6 +400,16 @@ class AppState extends ChangeNotifier {
       const Duration(seconds: 5),
       (_) => refreshLanIp(),
     );
+  }
+
+  static List<dynamic> _decodeList(String? raw) {
+    if (raw == null) return [];
+    try {
+      final value = jsonDecode(raw);
+      return value is List ? value : [];
+    } catch (_) {
+      return [];
+    }
   }
 
   static Map<String, dynamic> _decodeMap(String? raw) {
@@ -567,26 +566,218 @@ class AppState extends ChangeNotifier {
     _setProfile(profile.keepingPrivate(imported));
   }
 
+  /// Persists a short, non-sensitive connection history entry.
+  void _saveHistory({
+    required String mode,
+    required DateTime startedAt,
+    required bool success,
+    int? latencyMs,
+    String? reason,
+  }) {
+    connectionHistory = [
+      {
+        'mode': mode,
+        'startedAt': startedAt.toIso8601String(),
+        'durationSeconds': DateTime.now().difference(startedAt).inSeconds.clamp(0, 1 << 31),
+        'success': success,
+        if (latencyMs != null && latencyMs >= 0) 'latencyMs': latencyMs,
+        if (reason != null) 'reason': reason,
+      },
+      ...connectionHistory,
+    ].take(50).toList();
+    unawaited(_prefs.setString(_kConnectionHistory, jsonEncode(connectionHistory)));
+    notifyListeners();
+  }
+
+  Future<void> clearConnectionHistory() async {
+    connectionHistory = [];
+    await _prefs.remove(_kConnectionHistory);
+    notifyListeners();
+  }
+
+  void cancelSmartConnect() {
+    _cancelSmartConnection = true;
+    smartConnectionStatus = 'Cancelling…';
+    notifyListeners();
+  }
+
+  Future<bool> _waitForConnection({Duration timeout = const Duration(seconds: 25)}) async {
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      if (_cancelSmartConnection) return false;
+      if (isConnected) return true;
+      if (status == VpnStatus.disconnected && error != null) return false;
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+    return isConnected;
+  }
+
+  Future<int?> _measureDownloadKbps() async {
+    final client = proxiedClient(LocalProxy.port, connectTimeout: const Duration(seconds: 8));
+    final stopwatch = Stopwatch()..start();
+    try {
+      final response = await client
+          .get(Uri.parse('https://speed.cloudflare.com/__down?bytes=500000'))
+          .timeout(const Duration(seconds: 12));
+      stopwatch.stop();
+      if (response.statusCode != 200 || response.bodyBytes.isEmpty || stopwatch.elapsedMilliseconds == 0) {
+        return null;
+      }
+      return (response.bodyBytes.length * 8 / stopwatch.elapsedMilliseconds).round();
+    } catch (_) {
+      return null;
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> _waitUntilDisconnected() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    while (status != VpnStatus.disconnected && DateTime.now().isBefore(deadline)) {
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+  }
+
+  /// Tests only connection modes configured in this installation, then reconnects using
+  /// the lowest measured tunnel latency. Each candidate is tested through the real VPN engine.
+  Future<ConnectionMode?> smartConnect() async {
+    if (smartConnecting || isBusy) return null;
+    smartConnecting = true;
+    _cancelSmartConnection = false;
+    smartConnectionStatus = 'Preparing connection tests…';
+    error = null;
+    notifyListeners();
+
+    final candidates = List<ConnectionMode>.of(availableModes);
+    final results = <({ConnectionMode mode, int ping, int? kbps})>[];
+    final originalMode = mode;
+    final wasInitiallyConnected = isConnected;
+    try {
+      if (isConnected) {
+        await disconnect();
+        await _waitUntilDisconnected();
+      }
+
+      for (final candidate in candidates) {
+        if (_cancelSmartConnection) break;
+        smartConnectionStatus = 'Testing ${candidate.label}…';
+        setMode(candidate);
+        error = null;
+        notifyListeners();
+
+        await connect();
+        final connected = await _waitForConnection();
+        if (connected && !_cancelSmartConnection) {
+          final samples = <int>[];
+          for (var i = 0; i < 3 && !_cancelSmartConnection; i++) {
+            final sample = await VpnChannel.measureDelay();
+            if (sample >= 0) samples.add(sample);
+            if (i < 2) await Future.delayed(const Duration(milliseconds: 250));
+          }
+          samples.sort();
+          final measured = samples.isEmpty ? null : samples[samples.length ~/ 2];
+          final kbps = await _measureDownloadKbps();
+          if (measured != null) {
+            _sessionPing = measured;
+            pingMs = measured;
+            results.add((mode: candidate, ping: measured, kbps: kbps));
+          }
+          await disconnect();
+          await _waitUntilDisconnected();
+        } else if (status != VpnStatus.disconnected) {
+          // A timed-out candidate may still be in its connecting state. Stop it before
+          // moving to the next candidate so tests never overlap.
+          await disconnect();
+          await _waitUntilDisconnected();
+        }
+      }
+
+      if (_cancelSmartConnection) {
+        setMode(originalMode);
+        smartConnectionStatus = 'Smart Connect cancelled';
+        if (wasInitiallyConnected && !isConnected) await connect();
+        return null;
+      }
+
+      if (results.isEmpty) {
+        setMode(originalMode);
+        smartConnectionStatus = 'No connection passed the latency test';
+        error = 'Smart Connect could not find a working connection.';
+        if (wasInitiallyConnected && !isConnected) await connect();
+        return null;
+      }
+
+      final hasSpeedMeasurements = results.any((r) => r.kbps != null);
+      results.sort((a, b) {
+        if (hasSpeedMeasurements) {
+          final speedA = a.kbps ?? -1;
+          final speedB = b.kbps ?? -1;
+          final bySpeed = speedB.compareTo(speedA);
+          if (bySpeed != 0) return bySpeed;
+        }
+        return a.ping.compareTo(b.ping);
+      });
+      final best = results.first;
+      setMode(best.mode);
+      smartConnectionStatus = hasSpeedMeasurements
+          ? 'Best measured: ${best.mode.label} · ${best.kbps} kbps · ${best.ping} ms'
+          : 'Lowest measured latency: ${best.mode.label} · ${best.ping} ms';
+      error = null;
+      await connect();
+      final reconnected = await _waitForConnection();
+      if (!reconnected) {
+        smartConnectionStatus = 'Best measured: ${best.mode.label}, but the final reconnect failed';
+        return null;
+      }
+      return best.mode;
+    } finally {
+      smartConnecting = false;
+      _cancelSmartConnection = false;
+      notifyListeners();
+    }
+  }
+
   // endregion
 
   // region VPN
 
   void _onVpnState(VpnStateEvent event) {
+    final previousStatus = status;
     final wasConnected = status == VpnStatus.connected;
     final sameSession = connectedAt != null && connectedAt == event.connectedAt;
-    if (event.status == VpnStatus.connected && _historyAttemptStartedAt != null) {
-      _historyConnectedAt = event.connectedAt ?? DateTime.now();
-    }
-    if (event.status == VpnStatus.disconnected && _historyAttemptStartedAt != null) {
-      _recordConnectionHistory(
-        success: _historyConnectedAt != null,
-        failure: event.error ?? error,
-        latency: pingMs != null && pingMs! >= 0 ? pingMs : null,
-      );
-    }
     status = event.status;
     error = event.error;
     connectedAt = event.connectedAt;
+
+    if (event.status == VpnStatus.connected && !wasConnected) {
+      _sessionStartedAt = event.connectedAt ?? _connectStartedAt ?? DateTime.now();
+      _sessionMode = _connectMode ?? mode.label;
+      _sessionPing = null;
+      _connectStartedAt = null;
+      _connectMode = null;
+    } else if (event.status == VpnStatus.disconnected &&
+        previousStatus != VpnStatus.disconnected) {
+      if (_sessionStartedAt != null) {
+        _saveHistory(
+          mode: _sessionMode ?? mode.label,
+          startedAt: _sessionStartedAt!,
+          success: true,
+          latencyMs: _sessionPing,
+        );
+        _sessionStartedAt = null;
+        _sessionMode = null;
+        _sessionPing = null;
+      } else if (previousStatus == VpnStatus.connecting || _connectStartedAt != null) {
+        _saveHistory(
+          mode: _connectMode ?? mode.label,
+          startedAt: _connectStartedAt ?? DateTime.now(),
+          success: false,
+          reason: 'Connection failed',
+        );
+        _connectStartedAt = null;
+        _connectMode = null;
+      }
+    }
     exitDetail = event.detail;
     if (status == VpnStatus.connected) {
       _startTrafficTimer();
@@ -630,10 +821,9 @@ class AppState extends ChangeNotifier {
 
   Future<void> connect() async {
     if (isBusy) return;
+    _connectStartedAt = DateTime.now();
+    _connectMode = mode.label;
     error = null;
-    _historyAttemptStartedAt = DateTime.now();
-    _historyConnectedAt = null;
-    _historyAttemptMode = mode.label;
     status = VpnStatus.connecting;
     notifyListeners();
     try {
@@ -660,7 +850,16 @@ class AppState extends ChangeNotifier {
     } catch (e) {
       status = VpnStatus.disconnected;
       error = e is StateError ? e.message : '$e';
-      _recordConnectionHistory(success: false, failure: error);
+      if (_connectStartedAt != null) {
+        _saveHistory(
+          mode: _connectMode ?? mode.label,
+          startedAt: _connectStartedAt!,
+          success: false,
+          reason: 'Connection failed',
+        );
+        _connectStartedAt = null;
+        _connectMode = null;
+      }
       notifyListeners();
     }
   }
@@ -858,6 +1057,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     try {
       pingMs = await VpnChannel.measureDelay();
+      if (isConnected) _sessionPing = pingMs;
     } catch (_) {
       pingMs = -1;
     }

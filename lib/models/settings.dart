@@ -463,15 +463,29 @@ class ChainProxy {
   final String name;
   final String link;
   final bool favorite;
-  final String category;
+  final String? category;
 
   const ChainProxy({
     required this.id,
     required this.name,
     required this.link,
     this.favorite = false,
-    this.category = '',
+    this.category,
   });
+
+  ChainProxy copyWith({
+    String? name,
+    String? link,
+    bool? favorite,
+    String? category,
+    bool clearCategory = false,
+  }) => ChainProxy(
+    id: id,
+    name: name ?? this.name,
+    link: link ?? this.link,
+    favorite: favorite ?? this.favorite,
+    category: clearCategory ? null : category ?? this.category,
+  );
 
   static ChainProxy? parse(Object? v) {
     final j = _map(v);
@@ -482,7 +496,7 @@ class ChainProxy {
       name: _strOrNull(j['name']) ?? id,
       link: link,
       favorite: _bool(j['favorite'], false),
-      category: _str(j['category'], ''),
+      category: _strOrNull(j['category']),
     );
   }
 
@@ -491,7 +505,7 @@ class ChainProxy {
     'name': name,
     'link': link,
     'favorite': favorite,
-    'category': category,
+    if (category != null) 'category': category,
   };
 }
 

@@ -5,102 +5,161 @@ import '../models/settings.dart';
 import '../state/app_state.dart';
 import 'chip_menu.dart';
 import 'config_view_page.dart';
-import 'chain_proxies_page.dart';
-import 'connection_tools_page.dart';
 import 'connection_card.dart';
+import 'connection_history_page.dart';
 import 'format.dart';
 import 'log_page.dart';
 import 'settings_page.dart';
+import 'smart_connection_card.dart';
 import 'theme.dart';
 import 'status_card.dart';
+import 'v2rayng_page.dart';
 
-class HomePage extends StatelessWidget {
+enum _AppSection { voidCore, v2rayNg }
+
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  // VOIDCORE is intentionally the default section on every app launch.
+  _AppSection _section = _AppSection.voidCore;
 
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-  mainAxisSize: MainAxisSize.min,
-  children: [
-    ImageIcon(
-      const AssetImage('assets/icons/ic_stat_vpn.png'),
-      size: 24,
-      color: Theme.of(context).colorScheme.primary,
-    ),
-    const SizedBox(width: 8),
-    Flexible(
-      child: Text(
-        'VOIDCORE',
-        maxLines: 1,
-        softWrap: false,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontWeight: FontWeight.w600,
+      drawer: Drawer(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                child: Row(children: [
+                  ImageIcon(const AssetImage('assets/icons/ic_stat_vpn.png'), size: 30, color: scheme.primary),
+                  const SizedBox(width: 12),
+                  Text('VOIDCORE', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                ]),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 16, 12, 6),
+                child: Text('WORKSPACES', style: theme.textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant, letterSpacing: 1.1)),
+              ),
+              _WorkspaceButton(
+                title: 'VOIDCORE',
+                subtitle: 'Native connection methods',
+                icon: Symbols.shield_rounded,
+                selected: _section == _AppSection.voidCore,
+                onTap: () { setState(() => _section = _AppSection.voidCore); Navigator.pop(context); },
+              ),
+              _WorkspaceButton(
+                title: 'V2rayNG',
+                subtitle: 'Share-link configuration manager',
+                icon: Symbols.hub_rounded,
+                selected: _section == _AppSection.v2rayNg,
+                onTap: () { setState(() => _section = _AppSection.v2rayNg); Navigator.pop(context); },
+              ),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text('V2rayNG mode uses the share-link formats supported by the existing Xray parser.', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  ],
-),
-        actions: [
-          // VPN: the whole device; Proxy: only apps set to use the local SOCKS/HTTP proxy.
-          ChipMenu(
-            values: AppMode.values,
-            selected: state.device.appMode,
-            label: (v) => v == AppMode.proxy ? 'Proxy mode' : 'VPN mode',
-            onSelected: state.setAppMode,
-            enabled: !state.isBusy,
-          ),
+      appBar: AppBar(
+        leading: Builder(builder: (context) => IconButton(
+          tooltip: 'Open navigation menu',
+          icon: const Icon(Symbols.menu_rounded),
+          onPressed: () => Scaffold.of(context).openDrawer(),
+        )),
+        title: Row(mainAxisSize: MainAxisSize.min, children: [
+          ImageIcon(const AssetImage('assets/icons/ic_stat_vpn.png'), size: 24, color: scheme.primary),
+          const SizedBox(width: 8),
+          Flexible(child: Text(_section == _AppSection.voidCore ? 'VOIDCORE' : 'V2rayNG', maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600))),
+        ]),
+        actions: _section == _AppSection.voidCore ? [
+          ChipMenu(values: AppMode.values, selected: state.device.appMode, label: (v) => v == AppMode.proxy ? 'Proxy mode' : 'VPN mode', onSelected: state.setAppMode, enabled: !state.isBusy),
           const SizedBox(width: 4),
-          PopupMenuButton<String>(
-            tooltip: 'More tools',
-            onSelected: (value) {
-              final Widget page = switch (value) {
-                'configs' => const ChainProxiesPage(),
-                'smart' => const ConnectionToolsPage(),
-                'logs' => const LogPage(),
-                _ => const ConfigViewPage(),
-              };
-              Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'configs', child: ListTile(leading: Icon(Icons.link), title: Text('Manage configs'))),
-              PopupMenuItem(value: 'smart', child: ListTile(leading: Icon(Icons.auto_awesome), title: Text('Smart Connect & history'))),
-              PopupMenuItem(value: 'logs', child: ListTile(leading: Icon(Symbols.bug_report_rounded), title: Text('Logs'))),
-              PopupMenuItem(value: 'config', child: ListTile(leading: Icon(Symbols.data_object_rounded), title: Text('View config'))),
-            ],
-          ),
-          IconButton(
-            tooltip: 'Settings',
-            icon: const Icon(Symbols.settings_rounded),
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const SettingsPage())),
-          ),
+          IconButton(tooltip: 'Connection history', icon: const Icon(Symbols.history_rounded), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ConnectionHistoryPage()))),
+          IconButton(tooltip: 'Logs', icon: const Icon(Symbols.bug_report_rounded), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LogPage()))),
+          IconButton(tooltip: 'View config', icon: const Icon(Symbols.data_object_rounded), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ConfigViewPage()))),
+          IconButton(tooltip: 'Settings', icon: const Icon(Symbols.settings_rounded), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsPage()))),
+        ] : [
+          IconButton(tooltip: 'Connection history', icon: const Icon(Symbols.history_rounded), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ConnectionHistoryPage()))),
         ],
       ),
-      body: SafeArea(
-        bottom: false,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewPaddingOf(context).bottom + 16,
-          ),
-          child: Column(
-            children: [
-              if (state.needsReconnect) const _ReconnectBanner(),
-              const SizedBox(height: 16),
-              const ConnectionCard(),
-              const SizedBox(height: 16),
-              const StatusCard(),
-              const SizedBox(height: 16),
-              const _TrafficRow(),
-              const SizedBox(height: 16),
-              // Worker requests only matter for the types that use the worker (Worker).
-              if (state.worker != null && state.mode.needsWorker)
-                const _UsageCard(),
-            ],
+      body: _section == _AppSection.v2rayNg
+          ? const V2rayNgPage()
+          : SafeArea(
+              bottom: false,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(context).bottom + 16),
+                child: Column(children: [
+                  if (state.needsReconnect) const _ReconnectBanner(),
+                  const SizedBox(height: 16),
+                  const ConnectionCard(),
+                  const SizedBox(height: 12),
+                  const SmartConnectionCard(),
+                  const SizedBox(height: 16),
+                  const StatusCard(),
+                  const SizedBox(height: 16),
+                  const _TrafficRow(),
+                  const SizedBox(height: 16),
+                  if (state.worker != null && state.mode.needsWorker) const _UsageCard(),
+                ]),
+              ),
+            ),
+    );
+  }
+}
+
+class _WorkspaceButton extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  const _WorkspaceButton({required this.title, required this.subtitle, required this.icon, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final background = selected
+        ? scheme.primary
+        : theme.brightness == Brightness.dark
+            ? scheme.surfaceContainerHighest
+            : scheme.surfaceContainerLow;
+    final foreground = selected ? scheme.onPrimary : scheme.onSurface;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Material(
+        color: background,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(children: [
+              Icon(icon, color: foreground),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: theme.textTheme.titleSmall?.copyWith(color: foreground, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(color: foreground.withValues(alpha: .78))),
+              ])),
+              if (selected) Icon(Symbols.check_circle_rounded, color: foreground, size: 20),
+            ]),
           ),
         ),
       ),
