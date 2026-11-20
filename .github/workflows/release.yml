@@ -20,72 +20,59 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Check the tag against pubspec.yaml
-        run: |
-          version=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)
+        with:
+          fetch-depth: 0
 
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            tag="${GITHUB_REF_NAME#v}"
-
-            if [ "$tag" != "$version" ]; then
-              echo "::error::Tag v$tag doesn't match pubspec.yaml's version $version"
-              exit 1
-            fi
-          fi
-
-          echo "VERSION=$version" >> "$GITHUB_ENV"
-
-      - name: Update version in pubspec.yaml
+      - name: Resolve release version and tag
+        id: release
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
         run: |
           set -euo pipefail
 
-          VERSION="${{ inputs.version }}"
-
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Invalid version format. Use X.Y.Z"
-            exit 1
-          fi
-
-          BUILD_NUMBER=$(grep '^version:' pubspec.yaml | sed -E 's/.*\+([0-9]+).*/\1/')
-
-          if [[ "$BUILD_NUMBER" == "$(grep '^version:' pubspec.yaml | sed -E 's/.*\+([0-9]+).*/\1/')" ]]; then
-            BUILD_NUMBER=$((BUILD_NUMBER + 1))
-          fi
-
-          sed -i -E "s/^version:.*/version: ${VERSION}+${BUILD_NUMBER}/" pubspec.yaml
-
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
-
-          echo "Updated pubspec.yaml:"
-          grep '^version:' pubspec.yaml
-
-      - name: Create and push release tag
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Invalid version format. Example: 1.4.0"
-            exit 1
-          fi
-
-          if [ "$VERSION" != "$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)" ]; then
-            echo "::error::Version does not match pubspec.yaml"
+          VERSION="$VERSION_INPUT"
+          if [[ ! "$VERSION" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]]; then
+            echo "::error::Invalid version format. Use X.Y.Z (for example 1.5.0)"
             exit 1
           fi
 
           TAG="v$VERSION"
 
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "::error::Tag $TAG already exists"
-            exit 1
+          # If the requested release tag already exists, build the exact
+          # commit referenced by that tag. Never rewrite pubspec or create
+          # another tag in this path.
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; checking out its existing release."
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+            git checkout --detach "$TAG"
+
+            TAG_VERSION=$(sed -n 's/^version: *\\([^+]*\\).*/\\1/p' pubspec.yaml)
+            if [ "$TAG_VERSION" != "$VERSION" ]; then
+              echo "::error::Existing tag $TAG contains pubspec version $TAG_VERSION, not $VERSION"
+              exit 1
+            fi
+
+            echo "EXISTING_TAG=true" >> "$GITHUB_ENV"
+          else
+            echo "Tag $TAG does not exist; preparing a new release."
+            BUILD_NUMBER=$(grep '^version:' pubspec.yaml | sed -E 's/.*\\+([0-9]+).*/\\1/')
+            BUILD_NUMBER=$((BUILD_NUMBER + 1))
+            sed -i -E "s/^version:.*/version: ${VERSION}+${BUILD_NUMBER}/" pubspec.yaml
+
+            echo "EXISTING_TAG=false" >> "$GITHUB_ENV"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add pubspec.yaml
+            git commit -m "chore: prepare release $VERSION"
+            git tag "$TAG"
+            git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}"
+            git push origin "$TAG"
           fi
 
-          git tag "$TAG"
-          git push origin "$TAG"
-
-          echo "Created tag: $TAG"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "Resolved release: $TAG"
+          grep '^version:' pubspec.yaml
 
       - uses: actions/setup-java@v4
         with:
