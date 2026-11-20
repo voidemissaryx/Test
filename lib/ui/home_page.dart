@@ -65,10 +65,6 @@ class _HomePageState extends State<HomePage> {
                 onTap: () { setState(() => _section = _AppSection.v2rayNg); Navigator.pop(context); },
               ),
               const Spacer(),
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text('V2rayNG mode uses the share-link formats supported by the existing Xray parser.', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
-              ),
             ],
           ),
         ),
