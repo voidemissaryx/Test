@@ -356,6 +356,8 @@ class XrayConfigBuilder {
   /// and the socks outbound to it is the "proxy".
   bool _exitType = false;
   bool _standaloneV2ray = false;
+  AppMode? _standaloneAppMode;
+  int? _standaloneMtu;
 
   /// Psiphon or Tor (as an exit or as the type).
   bool get _isExitProcess => _exit == ExitNode.psiphon || _exit == ExitNode.tor;
@@ -442,8 +444,14 @@ class XrayConfigBuilder {
   /// Builds a standalone TUN configuration for a saved V2Ray workspace entry.
   /// It reuses the same Xray outbound builders as chain proxies, but routes traffic
   /// directly through this outbound instead of dialing it through another VPN.
-  Future<XrayBuild> buildStandaloneChain(ChainProxy selected) async {
+  Future<XrayBuild> buildStandaloneChain(
+    ChainProxy selected, {
+    AppMode? appMode,
+    int? mtu,
+  }) async {
     _standaloneV2ray = true;
+    _standaloneAppMode = appMode ?? device.appMode;
+    _standaloneMtu = mtu ?? device.mtu;
     _mode = ConnectionMode.worker;
     _exit = ExitNode.chain;
     _exitType = false;
@@ -471,6 +479,8 @@ class XrayConfigBuilder {
     ConnectionVariant variant = ConnectionVariant.normal,
   }) {
     _standaloneV2ray = false;
+    _standaloneAppMode = null;
+    _standaloneMtu = null;
     _exit = exitFor(mode, device, profile.chains);
     _mode = mode;
     _exitType = mode == ConnectionMode.psiphon || mode == ConnectionMode.tor;
@@ -1064,11 +1074,11 @@ class XrayConfigBuilder {
   /// The VPN device (not in proxy mode) and the local SOCKS/HTTP proxy.
   List<Map<String, dynamic>> _localInbounds(Map<String, dynamic> sniffing) => [
     // Proxy mode has no VPN device: only the mixed inbound below.
-    if (device.appMode != AppMode.proxy)
+    if ((_standaloneV2ray ? _standaloneAppMode : device.appMode) != AppMode.proxy)
       {
         'tag': 'tun',
         'protocol': 'tun',
-        'settings': {'name': 'xray0', 'MTU': device.mtu},
+        'settings': {'name': 'xray0', 'MTU': _standaloneV2ray ? _standaloneMtu : device.mtu},
         'sniffing': sniffing,
       },
     {
