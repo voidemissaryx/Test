@@ -1219,7 +1219,7 @@ class DeviceSettings {
     this.exitNodes = const {},
     this.exitChains = const {},
     this.exitRegion = '',
-    this.themeColor = 'blue',
+    this.themeColor = 'purple',
     this.themeMode = 'system',
     this.deployment = '',
     this.setupDone = false,
