@@ -480,6 +480,132 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
     }
   }
 
+
+  Future<void> _editSubscription({Map<String, String>? subscription}) async {
+    final name = TextEditingController(text: subscription?['name'] ?? '');
+    final url = TextEditingController(text: subscription?['url'] ?? '');
+    final result = await showDialog<({String name, String url})>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(subscription == null ? 'Add subscription' : 'Edit subscription'),
+        content: SizedBox(
+          width: 480,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: name, autofocus: subscription == null,
+              decoration: const InputDecoration(labelText: 'Subscription name')),
+            const SizedBox(height: 12),
+            TextField(controller: url, keyboardType: TextInputType.url,
+              decoration: const InputDecoration(labelText: 'Subscription URL', hintText: 'https://example.com/subscription')),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, (name: name.text.trim(), url: url.text.trim())), child: const Text('Save')),
+        ],
+      ),
+    );
+    name.dispose();
+    url.dispose();
+    if (result == null) return;
+    final uri = Uri.tryParse(result.url);
+    if (result.name.isEmpty || uri == null || !{'http', 'https'}.contains(uri.scheme) || uri.host.isEmpty) {
+      _message('Enter a name and a valid HTTP or HTTPS subscription URL.');
+      return;
+    }
+    final state = AppScope.read(context);
+    if (subscription == null) {
+      state.addV2raySubscription(id: newChainId(), name: result.name, url: result.url);
+    } else {
+      state.updateV2raySubscription(id: subscription['id']!, name: result.name, url: result.url);
+    }
+  }
+
+  Future<void> _refreshSubscription(Map<String, String> subscription) async {
+    final uri = Uri.tryParse(subscription['url'] ?? '');
+    if (uri == null || !{'http', 'https'}.contains(uri.scheme) || uri.host.isEmpty) {
+      _message('This subscription URL is invalid.');
+      return;
+    }
+    try {
+      _message('Updating ${subscription['name']}…');
+      final response = await http.get(uri).timeout(const Duration(seconds: 25));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        _message('Subscription update failed: HTTP ${response.statusCode}');
+        return;
+      }
+      final parsed = parseChainProxies(_decodeSubscription(response.body), fileName: subscription['name']);
+      final state = AppScope.read(context);
+      state.replaceV2raySubscriptionConfigs(subscription['id']!, parsed);
+      _message('Updated ${subscription['name']} · ${parsed.length} profiles.');
+    } catch (e) {
+      _message('Could not update subscription: $e');
+    }
+  }
+
+  Future<void> _manageSubscriptions() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * .68,
+            child: Column(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 12, 8),
+                child: Row(children: [
+                  Expanded(child: Text('Manage subscriptions', style: Theme.of(sheetContext).textTheme.titleLarge)),
+                  FilledButton.icon(
+                    onPressed: () { Navigator.pop(sheetContext); _editSubscription(); },
+                    icon: const Icon(Symbols.add_rounded),
+                    label: const Text('Add'),
+                  ),
+                ]),
+              ),
+              Expanded(
+                child: Builder(builder: (context) {
+                  final subscriptions = AppScope.of(context).v2raySubscriptions;
+                  if (subscriptions.isEmpty) {
+                    return const Center(child: Text('No subscriptions added yet.'));
+                  }
+                  return ListView.separated(
+                    itemCount: subscriptions.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final item = subscriptions[index];
+                      return ListTile(
+                        leading: const Icon(Symbols.rss_feed_rounded),
+                        title: Text(item['name'] ?? 'Subscription'),
+                        subtitle: Text(item['url'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (action) {
+                            if (action == 'update') _refreshSubscription(item);
+                            if (action == 'edit') { Navigator.pop(sheetContext); _editSubscription(subscription: item); }
+                            if (action == 'delete') {
+                              AppScope.read(context).deleteV2raySubscription(item['id']!);
+                            }
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(value: 'update', child: Text('Update now')),
+                            PopupMenuItem(value: 'edit', child: Text('Edit')),
+                            PopupMenuItem(value: 'delete', child: Text('Delete subscription')),
+                          ],
+                        ),
+                        onTap: () => _refreshSubscription(item),
+                      );
+                    },
+                  );
+                }),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _scanQr() async {
     final text = await Navigator.of(context).push<String>(
       MaterialPageRoute(builder: (_) => const _V2rayQrScannerPage()),
@@ -647,10 +773,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 _V2rayPowerCard(onMessage: _message, pinging: _pingAllRunning),
                 const SizedBox(height: 14),
-                Text('V2Ray workspace', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text('Manage profiles, test server latency, and connect through the shared Xray engine.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -669,7 +792,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                     icon: state.v2raySmartConnecting
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Symbols.bolt_rounded),
-                    label: const Text('V2Ray Smart Connect'),
+                    label: const Text('Auto Connect'),
                   ),
                   OutlinedButton.icon(
                     onPressed: _pingAllRunning
@@ -691,6 +814,11 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                     ),
                   ],
                   const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: _pingAllRunning ? null : _manageSubscriptions,
+                    icon: const Icon(Symbols.rss_feed_rounded),
+                    label: const Text('Subscriptions'),
+                  ),
                   OutlinedButton.icon(
                     onPressed: state.isBusy || state.smartConnecting || state.v2raySmartConnecting ? null : _workspaceSettings,
                     icon: const Icon(Symbols.settings_rounded),
@@ -748,7 +876,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                 ),
                 const SizedBox(height: 12),
                 Row(children: [
-                  Expanded(child: Text('${configs.length} configuration(s)', style: theme.textTheme.labelLarge)),
+                  const Spacer(),
                   PopupMenuButton<String>(
                     tooltip: 'Sort configurations',
                     initialValue: _sortMode,
@@ -987,16 +1115,16 @@ class _V2rayPowerCard extends StatelessWidget {
     final statusText = pinging
         ? 'Testing server latency…'
         : connected
-        ? 'V2Ray connected'
+        ? 'Connected'
         : connecting
-            ? 'Connecting to V2Ray…'
+            ? 'Connecting'
             : state.status == VpnStatus.disconnecting && activeId != null
                 ? 'Disconnecting…'
                 : blockedByVoidCore
                     ? 'Disconnect VOIDCORE before using V2Ray'
                     : selectedConfig == null
                         ? 'Select or import a V2Ray profile'
-                        : 'Ready to connect';
+                        : 'Disconnected';
     final profileText = activeConfig?.name ?? selectedConfig?.name ?? 'No profile selected';
 
     Future<void> toggle() async {
@@ -1041,8 +1169,8 @@ class _V2rayPowerCard extends StatelessWidget {
                 customBorder: const CircleBorder(),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
-                  width: 100,
-                  height: 100,
+                  width: 116,
+                  height: 116,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
@@ -1063,15 +1191,15 @@ class _V2rayPowerCard extends StatelessWidget {
                     children: [
                       if (busy || pinging)
                         const SizedBox(
-                          width: 90,
-                          height: 90,
+                          width: 108,
+                          height: 108,
                           child: CircularProgressIndicator(
                             strokeWidth: 3,
                             strokeCap: StrokeCap.round,
                             color: Colors.white,
                           ),
                         ),
-                      Icon(Symbols.power_settings_new_rounded, size: 42, color: iconColor),
+                      Icon(Symbols.power_settings_new_rounded, size: 56, color: iconColor),
                     ],
                   ),
                 ),
