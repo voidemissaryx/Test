@@ -11,6 +11,7 @@ import '../models/settings.dart';
 import '../services/chain_proxy.dart';
 import '../services/vpn_channel.dart';
 import '../state/app_state.dart';
+import 'format.dart';
 
 /// The V2Ray workspace manages imported share-link profiles using the app's existing Xray engine.
 /// It shares the single VPN service with VOIDCORE and never starts a second tunnel.
@@ -1057,7 +1058,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                                     ? null
                                     : () async {
                                         final connected = await state.connectV2ray(config);
-                                        if (mounted) _message(connected ? 'Connected to ${config.name}.' : (state.error ?? 'Connection failed.'));
+                                        if (mounted) _message(connected ? 'Connected to ${config.name}.' : (state.v2rayError ?? 'Connection failed.'));
                                       },
                                 icon: state.activeV2rayId == config.id && state.status == VpnStatus.connecting
                                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
@@ -1112,33 +1113,43 @@ class _V2rayPowerCard extends StatelessWidget {
     final selectedConfig = state.v2rayConfigs
         .where((c) => c.id == state.selectedV2rayId)
         .firstOrNull;
+    final hasConfigs = state.v2rayConfigs.isNotEmpty;
     final connected = activeId != null && state.isConnected;
-    final connecting = activeId != null && state.status == VpnStatus.connecting;
-    final busy = state.isBusy;
-    final canTap = pinging || state.v2raySmartConnecting || state.smartConnecting
-        ? false
-        : activeId != null
-            ? state.status != VpnStatus.disconnecting
-            : !busy && selectedConfig != null;
-    final Color fill = connected
-        ? const Color(0xFF1FA463)
-        : (connecting || busy ? scheme.primary : scheme.primaryContainer);
-    final Color iconColor = connected
-        ? Colors.white
-        : (connecting || busy ? scheme.onPrimary : scheme.onPrimaryContainer);
+    final connecting = state.v2rayConnecting ||
+        (activeId != null && state.status == VpnStatus.connecting);
+    final busy = state.v2rayConnecting ||
+        state.v2raySmartConnecting ||
+        (activeId != null && state.status == VpnStatus.disconnecting);
+    final canTap = !pinging &&
+        !busy &&
+        !state.smartConnecting &&
+        (activeId != null || selectedConfig != null);
+    final Color fill = !hasConfigs
+        ? scheme.error
+        : connected
+            ? const Color(0xFF1FA463)
+            : (connecting ? scheme.primary : scheme.primaryContainer);
+    final Color iconColor = !hasConfigs
+        ? scheme.onError
+        : connected
+            ? Colors.white
+            : (connecting ? scheme.onPrimary : scheme.onPrimaryContainer);
     final statusText = pinging
         ? 'Testing server latency…'
         : connected
-        ? 'Connected'
-        : connecting
-            ? 'Connecting'
-            : state.status == VpnStatus.disconnecting
-                ? 'Disconnecting'
-                : 'Disconnected';
-    final profileText = activeConfig?.name ?? selectedConfig?.name ?? 'No profile selected';
+            ? 'Connected'
+            : connecting
+                ? 'Connecting'
+                : activeId != null && state.status == VpnStatus.disconnecting
+                    ? 'Disconnecting'
+                    : hasConfigs
+                        ? 'Disconnected'
+                        : 'No configurations';
+    final profileText =
+        activeConfig?.name ?? selectedConfig?.name ?? 'No profile selected';
 
     Future<void> toggle() async {
-      if (pinging) return;
+      if (pinging || busy) return;
       if (activeId != null) {
         await state.disconnect();
         onMessage('V2Ray disconnected.');
@@ -1150,7 +1161,9 @@ class _V2rayPowerCard extends StatelessWidget {
         return;
       }
       final ok = await state.connectV2ray(config);
-      onMessage(ok ? 'Connected to ${config.name}.' : (state.error ?? 'V2Ray connection failed.'));
+      onMessage(ok
+          ? 'Connected to ${config.name}.'
+          : (state.v2rayError ?? 'V2Ray connection failed.'));
     }
 
     return Card(
@@ -1172,83 +1185,90 @@ class _V2rayPowerCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
-            Semantics(
-              button: true,
-              label: pinging
-                  ? 'V2Ray latency test in progress'
-                  : connected
-                      ? 'Disconnect V2Ray'
-                      : 'Connect selected V2Ray profile',
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color.lerp(fill, Colors.white, .18)!,
-                      fill,
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: fill.withValues(alpha: connected ? .45 : .30),
-                      blurRadius: connected ? 30 : 24,
-                      offset: const Offset(0, 9),
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: .22),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Material(
-                  type: MaterialType.transparency,
-                  shape: const CircleBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: canTap ? toggle : null,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        if (busy || pinging)
-                          const SizedBox(
-                            width: 112,
-                            height: 112,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 3,
-                              strokeCap: StrokeCap.round,
-                              color: Colors.white,
-                            ),
-                          ),
-                        AnimatedRotation(
-                          turns: connected || connecting ? 0 : .5,
-                          duration: const Duration(milliseconds: 500),
-                          curve: Curves.easeOutCubic,
-                          child: Icon(
-                            Symbols.power_settings_new_rounded,
-                            size: 58,
-                            color: iconColor,
-                          ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Semantics(
+                  button: true,
+                  label: !hasConfigs
+                      ? 'No V2Ray configurations'
+                      : pinging
+                          ? 'V2Ray latency test in progress'
+                          : connected
+                              ? 'Disconnect V2Ray'
+                              : 'Connect selected V2Ray profile',
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color.lerp(fill, Colors.white, .18)!,
+                          fill,
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: fill.withValues(alpha: connected ? .45 : .30),
+                          blurRadius: connected ? 30 : 24,
+                          offset: const Offset(0, 9),
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: .22),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
+                    child: Material(
+                      type: MaterialType.transparency,
+                      shape: const CircleBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: canTap ? toggle : null,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            if (busy || pinging)
+                              const SizedBox(
+                                width: 112,
+                                height: 112,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  strokeCap: StrokeCap.round,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            AnimatedRotation(
+                              turns: connected || connecting ? 0 : .5,
+                              duration: const Duration(milliseconds: 500),
+                              curve: Curves.easeOutCubic,
+                              child: Icon(
+                                Symbols.power_settings_new_rounded,
+                                size: 58,
+                                color: iconColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 16),
+                Expanded(child: _V2rayMetrics()),
+              ],
             ),
             const SizedBox(height: 12),
             Text(
               statusText,
               style: theme.textTheme.titleSmall?.copyWith(
-                color: connected
-                    ? const Color(0xFF1FA463)
-                    : scheme.onSurface,
+                color: connected ? const Color(0xFF1FA463) : scheme.onSurface,
                 fontWeight: FontWeight.w700,
               ),
               textAlign: TextAlign.center,
@@ -1265,6 +1285,121 @@ class _V2rayPowerCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _V2rayMetrics extends StatefulWidget {
+  @override
+  State<_V2rayMetrics> createState() => _V2rayMetricsState();
+}
+
+class _V2rayMetricsState extends State<_V2rayMetrics> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final theme = Theme.of(context);
+    final active = state.activeV2rayId != null && state.isConnected;
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final duration = active && state.connectedAt != null
+        ? formatDuration(DateTime.now().difference(state.connectedAt!))
+        : '—';
+    final ping = !active
+        ? '—'
+        : state.pinging
+            ? 'Testing…'
+            : state.pingMs == null
+                ? 'Tap to test'
+                : state.pingMs! < 0
+                    ? 'Timeout'
+                    : '${state.pingMs} ms';
+
+    Widget metric(IconData icon, String label, String value, {String? total}) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 14, color: muted),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(color: muted),
+                  ),
+                ),
+                Flexible(
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (total != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 19, top: 1),
+                child: Text(
+                  'Total $total',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: muted,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        metric(
+          Symbols.arrow_downward_rounded,
+          'Download',
+          active ? '${formatBytes(state.downSpeed)}/s' : '—',
+          total: active ? formatBytes(state.totalDown) : null,
+        ),
+        metric(
+          Symbols.arrow_upward_rounded,
+          'Upload',
+          active ? '${formatBytes(state.upSpeed)}/s' : '—',
+          total: active ? formatBytes(state.totalUp) : null,
+        ),
+        metric(Symbols.timer_rounded, 'Duration', duration),
+        InkWell(
+          onTap: active && !state.pinging ? state.testPing : null,
+          borderRadius: BorderRadius.circular(8),
+          child: metric(Symbols.speed_rounded, 'Ping', ping),
+        ),
+      ],
     );
   }
 }
