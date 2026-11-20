@@ -28,23 +28,124 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
   String _category = 'All';
   final Map<String, int> _latencies = {};
   final Set<String> _probing = {};
+  bool _pingAllRunning = false;
+  bool _cancelPingAll = false;
+  int _pingAllProgress = 0;
+  String _sortMode = 'default';
+
+  Future<int?> _measureTcpLatency(ChainProxy config) async {
+    final info = ChainInfo.of(config.link);
+    if (info == null || info.isUdp) return null;
+    Socket? socket;
+    try {
+      final watch = Stopwatch()..start();
+      socket = await Socket.connect(
+        info.uri.server,
+        info.uri.port,
+        timeout: const Duration(seconds: 4),
+      );
+      watch.stop();
+      return watch.elapsedMilliseconds;
+    } catch (_) {
+      return -1;
+    } finally {
+      socket?.destroy();
+    }
+  }
 
   Future<void> _probe(ChainProxy config) async {
     final info = ChainInfo.of(config.link);
-    if (info == null) { _message('This configuration is invalid.'); return; }
-    if (info.isUdp) { _message('A TCP ping is not valid for this UDP-only endpoint.'); return; }
+    if (info == null) {
+      _message('This configuration is invalid.');
+      return;
+    }
+    if (info.isUdp) {
+      _message('This is a UDP-only profile; a direct TCP ping is unavailable.');
+      return;
+    }
+    if (AppScope.read(context).status != VpnStatus.disconnected) {
+      _message('Disconnect the active connection before testing direct server latency.');
+      return;
+    }
+    if (_pingAllRunning || _probing.contains(config.id)) return;
     setState(() => _probing.add(config.id));
     try {
-      final watch = Stopwatch()..start();
-      final socket = await Socket.connect(info.uri.server, info.uri.port, timeout: const Duration(seconds: 4));
-      watch.stop();
-      socket.destroy();
-      if (mounted) setState(() => _latencies[config.id] = watch.elapsedMilliseconds);
-      _message('${config.name}: ${watch.elapsedMilliseconds} ms TCP latency');
-    } catch (e) {
-      _message('${config.name}: endpoint is not reachable over TCP.');
+      final latency = await _measureTcpLatency(config);
+      if (!mounted) return;
+      setState(() => _latencies[config.id] = latency ?? -1);
+      _message(latency == null || latency < 0
+          ? '${config.name}: server is not reachable over TCP.'
+          : '${config.name}: ${latency} ms TCP latency');
     } finally {
       if (mounted) setState(() => _probing.remove(config.id));
+    }
+  }
+
+  Future<void> _pingAll(List<ChainProxy> configs) async {
+    if (_pingAllRunning || configs.isEmpty) return;
+    final state = AppScope.read(context);
+    if (state.status != VpnStatus.disconnected || state.smartConnecting || state.v2raySmartConnecting) {
+      _message('Disconnect the active connection before running Ping All.');
+      return;
+    }
+    setState(() {
+      _pingAllRunning = true;
+      _cancelPingAll = false;
+      _pingAllProgress = 0;
+      _probing.clear();
+    });
+    var reachable = 0;
+    var unreachable = 0;
+    var udpSkipped = 0;
+    var invalid = 0;
+    try {
+      // Small batches avoid opening too many sockets on mobile devices at once.
+      for (var offset = 0; offset < configs.length; offset += 8) {
+        if (_cancelPingAll) break;
+        final batch = configs.skip(offset).take(8).toList();
+        if (mounted) setState(() => _probing.addAll(batch.map((c) => c.id)));
+        final results = await Future.wait(batch.map((config) async {
+          final info = ChainInfo.of(config.link);
+          if (info == null) {
+            return (id: config.id, latency: -1, udp: false, invalid: true);
+          }
+          if (info.isUdp) {
+            return (id: config.id, latency: -1, udp: true, invalid: false);
+          }
+          final latency = await _measureTcpLatency(config);
+          return (id: config.id, latency: latency ?? -1, udp: false, invalid: false);
+        }));
+        if (!mounted) return;
+        setState(() {
+          for (final result in results) {
+            _probing.remove(result.id);
+            if (result.udp) {
+              udpSkipped++;
+            } else if (result.invalid) {
+              invalid++;
+              _latencies[result.id] = -1;
+            } else if (result.latency < 0) {
+              unreachable++;
+              _latencies[result.id] = -1;
+            } else {
+              reachable++;
+              _latencies[result.id] = result.latency;
+            }
+          }
+          _pingAllProgress += batch.length;
+        });
+      }
+      if (!mounted) return;
+      _message(_cancelPingAll
+          ? 'Ping All cancelled · $reachable reachable, $unreachable unreachable.'
+          : 'Ping All complete · $reachable reachable, $unreachable unreachable, $udpSkipped UDP-only skipped, $invalid invalid.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _pingAllRunning = false;
+          _probing.clear();
+        });
+      }
     }
   }
 
@@ -460,6 +561,18 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
       final matchesSearch = query.isEmpty || c.name.toLowerCase().contains(query) || c.link.toLowerCase().contains(query) || (info?.protocol.toLowerCase().contains(query) ?? false);
       return matchesCategory && matchesSearch;
     }).toList();
+    if (_sortMode == 'name') {
+      configs.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    } else if (_sortMode == 'ping') {
+      int rank(ChainProxy config) {
+        final value = _latencies[config.id];
+        return value == null || value < 0 ? 1 << 30 : value;
+      }
+      configs.sort((a, b) {
+        final byLatency = rank(a).compareTo(rank(b));
+        return byLatency != 0 ? byLatency : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+    }
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
@@ -473,9 +586,11 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Configuration manager', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                _V2rayPowerCard(onMessage: _message),
+                const SizedBox(height: 14),
+                Text('V2Ray workspace', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text('Manage independent V2Ray profiles, test endpoint latency, and connect through the shared Xray engine.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                Text('Manage profiles, test server latency, and connect through the shared Xray engine.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
@@ -483,7 +598,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                   FilledButton.icon(
-                    onPressed: state.v2raySmartConnecting || state.smartConnecting || state.isBusy || all.isEmpty
+                    onPressed: _pingAllRunning || state.v2raySmartConnecting || state.smartConnecting || state.isBusy || all.isEmpty
                         ? null
                         : () async {
                             final selected = await state.smartConnectV2ray();
@@ -496,6 +611,17 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Symbols.bolt_rounded),
                     label: const Text('V2Ray Smart Connect'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _pingAllRunning
+                        ? () => setState(() => _cancelPingAll = true)
+                        : (all.isEmpty || state.status != VpnStatus.disconnected || state.smartConnecting || state.v2raySmartConnecting)
+                            ? null
+                            : () => _pingAll(all),
+                    icon: _pingAllRunning
+                        ? const Icon(Symbols.close_rounded)
+                        : const Icon(Symbols.speed_rounded),
+                    label: Text(_pingAllRunning ? 'Cancel ping' : 'Ping all'),
                   ),
                   if (state.v2raySmartConnecting) ...[
                     const SizedBox(width: 8),
@@ -511,15 +637,6 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                     icon: const Icon(Symbols.settings_rounded),
                     label: const Text('Settings'),
                   ),
-                  if (state.activeV2rayId != null) ...[
-                    Text(state.isConnected ? 'V2Ray connected' : 'V2Ray connecting…',
-                        style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.primary)),
-                    OutlinedButton.icon(
-                      onPressed: state.isBusy ? null : () async { await state.disconnect(); if (mounted) _message('V2Ray disconnected.'); },
-                      icon: const Icon(Symbols.stop_circle_rounded),
-                      label: const Text('Disconnect'),
-                    ),
-                  ],
                   if (state.v2rayNeedsReconnect && state.activeV2rayId != null)
                     TextButton.icon(
                       onPressed: state.isBusy ? null : state.reconnect,
@@ -527,6 +644,15 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                       label: const Text('Apply settings'),
                     ),
                 ]),
+                if (_pingAllRunning) ...[
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(
+                    value: all.isEmpty ? null : _pingAllProgress / all.length,
+                    minHeight: 4,
+                  ),
+                  const SizedBox(height: 4),
+                  Text('Testing servers · $_pingAllProgress / ${all.length}', style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                ],
                 if (state.v2rayNeedsReconnect && state.activeV2rayId != null) ...[
                   const SizedBox(height: 6),
                   Text('V2Ray settings changed · reconnect to apply', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.tertiary)),
@@ -546,6 +672,17 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                 const SizedBox(height: 12),
                 Row(children: [
                   Expanded(child: Text('${configs.length} configuration(s)', style: theme.textTheme.labelLarge)),
+                  PopupMenuButton<String>(
+                    tooltip: 'Sort configurations',
+                    initialValue: _sortMode,
+                    onSelected: (value) => setState(() => _sortMode = value),
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'default', child: Text('Default order')),
+                      PopupMenuItem(value: 'ping', child: Text('Lowest ping first')),
+                      PopupMenuItem(value: 'name', child: Text('Name A–Z')),
+                    ],
+                    icon: const Icon(Symbols.sort_rounded),
+                  ),
                   TextButton.icon(
                     onPressed: () => setState(() { _selecting = !_selecting; _selected.clear(); }),
                     icon: Icon(_selecting ? Symbols.close_rounded : Symbols.checklist_rounded),
@@ -647,7 +784,16 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Text(config.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                                 const SizedBox(height: 3),
-                                Text("${info?.address ?? 'Unsupported configuration'}${_latencies.containsKey(config.id) ? ' · ${_latencies[config.id]} ms' : ''}", maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                                Text(
+                                  info == null
+                                      ? 'Unsupported configuration'
+                                      : info.isUdp
+                                          ? '${info.address} · UDP · TCP ping unavailable'
+                                          : '${info.address}${_latencies.containsKey(config.id) ? ' · ${_latencies[config.id]! < 0 ? 'Timeout' : '${_latencies[config.id]} ms'}' : ''}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                ),
                                 const SizedBox(height: 7),
                                 Wrap(spacing: 5, runSpacing: 4, children: [
                                   for (final tag in info?.tags ?? const ['Invalid']) Chip(label: Text(tag), visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
@@ -659,7 +805,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                           if (!_selecting) ...[
                             IconButton(
                               tooltip: 'Test TCP latency',
-                              onPressed: _probing.contains(config.id) ? null : () => _probe(config),
+                              onPressed: _pingAllRunning || _probing.contains(config.id) ? null : () => _probe(config),
                               icon: _probing.contains(config.id)
                                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                                   : const Icon(Symbols.speed_rounded),
@@ -673,7 +819,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                             else
                               IconButton(
                                 tooltip: 'Connect with V2Ray',
-                                onPressed: state.isBusy || state.smartConnecting || state.v2raySmartConnecting
+                                onPressed: _pingAllRunning || state.isBusy || state.smartConnecting || state.v2raySmartConnecting
                                     ? null
                                     : () async {
                                         final connected = await state.connectV2ray(config);
@@ -710,6 +856,142 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _V2rayPowerCard extends StatelessWidget {
+  final ValueChanged<String> onMessage;
+  const _V2rayPowerCard({required this.onMessage});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final activeId = state.activeV2rayId;
+    final activeConfig = activeId == null
+        ? null
+        : state.v2rayConfigs.where((c) => c.id == activeId).firstOrNull;
+    final selectedConfig = state.v2rayConfigs
+        .where((c) => c.id == state.selectedV2rayId)
+        .firstOrNull;
+    final connected = activeId != null && state.isConnected;
+    final connecting = activeId != null && state.status == VpnStatus.connecting;
+    final busy = state.isBusy;
+    final blockedByVoidCore = activeId == null && state.status != VpnStatus.disconnected;
+    final canTap = state.v2raySmartConnecting
+        ? false
+        : activeId != null
+            ? true
+            : !busy && !blockedByVoidCore && selectedConfig != null;
+    final Color fill = connected
+        ? const Color(0xFF1FA463)
+        : (connecting || busy ? scheme.primary : scheme.primaryContainer);
+    final Color iconColor = connected
+        ? Colors.white
+        : (connecting || busy ? scheme.onPrimary : scheme.onPrimaryContainer);
+    final statusText = connected
+        ? 'V2Ray connected'
+        : connecting
+            ? 'Connecting to V2Ray…'
+            : state.status == VpnStatus.disconnecting && activeId != null
+                ? 'Disconnecting…'
+                : blockedByVoidCore
+                    ? 'Disconnect VOIDCORE before using V2Ray'
+                    : selectedConfig == null
+                        ? 'Select or import a V2Ray profile'
+                        : 'Ready to connect';
+    final profileText = activeConfig?.name ?? selectedConfig?.name ?? 'No profile selected';
+
+    Future<void> toggle() async {
+      if (activeId != null) {
+        await state.disconnect();
+        onMessage('V2Ray disconnected.');
+        return;
+      }
+      if (blockedByVoidCore) {
+        onMessage('Disconnect the active VOIDCORE connection first.');
+        return;
+      }
+      final config = selectedConfig;
+      if (config == null) {
+        onMessage('Select a V2Ray profile first.');
+        return;
+      }
+      final ok = await state.connectV2ray(config);
+      onMessage(ok ? 'Connected to ${config.name}.' : (state.error ?? 'V2Ray connection failed.'));
+    }
+
+    return Card(
+      margin: EdgeInsets.zero,
+      color: scheme.surfaceContainer,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .75)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+        child: Column(
+          children: [
+            Text('V2Ray Connection', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 14),
+            Semantics(
+              button: true,
+              label: connected ? 'Disconnect V2Ray' : 'Connect selected V2Ray profile',
+              child: InkWell(
+                onTap: canTap ? toggle : null,
+                customBorder: const CircleBorder(),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color.lerp(fill, Colors.white, .18)!, fill],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: fill.withValues(alpha: connected ? .45 : .25),
+                        blurRadius: connected ? 26 : 18,
+                        offset: const Offset(0, 7),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (busy)
+                        const SizedBox(
+                          width: 78,
+                          height: 78,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            strokeCap: StrokeCap.round,
+                            color: Colors.white,
+                          ),
+                        ),
+                      Icon(Symbols.power_settings_new_rounded, size: 42, color: iconColor),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(statusText, style: theme.textTheme.titleSmall?.copyWith(
+              color: connected ? const Color(0xFF1FA463) : scheme.onSurface,
+              fontWeight: FontWeight.w700,
+            ), textAlign: TextAlign.center),
+            const SizedBox(height: 3),
+            Text(profileText, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+          ],
+        ),
       ),
     );
   }
