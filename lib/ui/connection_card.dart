@@ -64,7 +64,6 @@ class ConnectionCard extends StatelessWidget {
           if (n != ExitNode.chain) n,
       ],
     };
-    final chain = state.exitChain;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -117,7 +116,7 @@ class ConnectionCard extends StatelessWidget {
                           ExitNode.psiphon => 'Psiphon',
                           ExitNode.tor => 'Tor',
                         },
-                        badges: (n) => _transports(n, state.mode, chain: chain),
+                        badges: (n) => _transports(n, state.mode, chain: null),
                         onSelected: state.setExitNode,
                         enabled: !state.isBusy && nodes.length > 1,
                       ),
