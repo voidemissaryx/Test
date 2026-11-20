@@ -37,7 +37,8 @@ class _StatusCardState extends State<StatusCard> {
   void initState() {
     super.initState();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && AppScope.read(context).isConnected) setState(() {});
+      final state = AppScope.read(context);
+      if (mounted && state.isConnected && state.activeV2rayId == null && !state.v2rayConnecting && !state.v2raySmartConnecting) setState(() {});
     });
   }
 
@@ -52,13 +53,15 @@ class _StatusCardState extends State<StatusCard> {
     final state = AppScope.of(context);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final failed =
-        state.status == VpnStatus.disconnected && state.error != null;
-    final (title, subtitle) = switch (state.status) {
+    final v2rayOwnsTunnel = state.activeV2rayId != null || state.v2rayConnecting || state.v2raySmartConnecting;
+    final homeStatus = v2rayOwnsTunnel ? VpnStatus.disconnected : state.status;
+    final homeConnected = homeStatus == VpnStatus.connected;
+    final failed = homeStatus == VpnStatus.disconnected && !v2rayOwnsTunnel && state.error != null;
+    final (title, subtitle) = switch (homeStatus) {
       // Psiphon / Tor say what they're doing: progress while connecting, or reconnecting.
       VpnStatus.connected => (
         'Connected',
-        state.activeV2rayId == null ? (state.exitDetail ?? 'Tap to disconnect') : 'Disconnect from the V2Ray workspace',
+        state.exitDetail ?? 'Tap to disconnect',
       ),
       VpnStatus.connecting => (
         state.connectedAt == null ? 'Connecting' : 'Reconnecting',
@@ -66,9 +69,9 @@ class _StatusCardState extends State<StatusCard> {
       ),
       VpnStatus.disconnecting => ('Disconnecting', 'Stopping the tunnel…'),
       VpnStatus.disconnected when failed => ('Connection failed', state.error!),
-      VpnStatus.disconnected => ('Disconnected', state.activeV2rayId == null ? 'Tap to connect' : 'V2Ray is managed in its workspace'),
+      VpnStatus.disconnected => ('Disconnected', 'Tap to connect'),
     };
-    final titleColor = state.isConnected
+    final titleColor = homeConnected
         ? _green
         : (failed ? scheme.error : scheme.onSurface);
     final muted = scheme.onSurfaceVariant;
