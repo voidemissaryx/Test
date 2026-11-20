@@ -507,6 +507,13 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
       return;
     }
     final state = AppScope.read(context);
+    final duplicate = state.v2raySubscriptions.any(
+      (item) => item['url'] == result.url && item['id'] != subscription?['id'],
+    );
+    if (duplicate) {
+      _message('This subscription URL is already saved.');
+      return;
+    }
     if (subscription == null) {
       state.addV2raySubscription(id: newChainId(), name: result.name, url: result.url);
     } else {
