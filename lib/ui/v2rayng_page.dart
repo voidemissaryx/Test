@@ -477,7 +477,11 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                 const SizedBox(height: 4),
                 Text('Manage independent V2Ray profiles, test endpoint latency, and connect through the shared Xray engine.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 12),
-                Row(children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
                   FilledButton.icon(
                     onPressed: state.v2raySmartConnecting || state.smartConnecting || state.isBusy || all.isEmpty
                         ? null
@@ -507,7 +511,6 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                     icon: const Icon(Symbols.settings_rounded),
                     label: const Text('Settings'),
                   ),
-                  const SizedBox(width: 10),
                   if (state.activeV2rayId != null) ...[
                     Text(state.isConnected ? 'V2Ray connected' : 'V2Ray connecting…',
                         style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.primary)),
@@ -670,7 +673,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                             else
                               IconButton(
                                 tooltip: 'Connect with V2Ray',
-                                onPressed: state.isBusy || state.smartConnecting
+                                onPressed: state.isBusy || state.smartConnecting || state.v2raySmartConnecting
                                     ? null
                                     : () async {
                                         final connected = await state.connectV2ray(config);
