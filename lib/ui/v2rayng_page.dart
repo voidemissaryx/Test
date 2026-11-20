@@ -743,7 +743,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
     final state = AppScope.of(context);
     final theme = Theme.of(context);
     final all = state.v2rayConfigs;
-    final categories = {'All', 'Favorites', ...all.map((c) => c.category).whereType<String>()};
+    final categories = {'All', 'Favorites', ...all.map((c) => c.category).whereType<String>().where((value) => !value.startsWith('subscription:'))};
     final query = _search.text.trim().toLowerCase();
     final configs = all.where((c) {
       final matchesCategory = _category == 'All' || (_category == 'Favorites' ? c.favorite : c.category == _category);
@@ -1164,7 +1164,7 @@ class _V2rayPowerCard extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
         child: Column(
           children: [
-            Text('V2Ray Connection', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text('V2RayNG', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 14),
             Semantics(
               button: true,
