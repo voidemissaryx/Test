@@ -350,6 +350,10 @@ class AppState extends ChangeNotifier {
     for (final config in configs) {
       if (existing.add(config.link)) v2rayConfigs.add(config);
     }
+    if (selectedV2rayId == null && v2rayConfigs.isNotEmpty) {
+      selectedV2rayId = v2rayConfigs.first.id;
+      _prefs.setString('voidcore.v2ray.selected', selectedV2rayId!);
+    }
     _saveV2rayConfigs();
     notifyListeners();
   }
@@ -462,11 +466,25 @@ class AppState extends ChangeNotifier {
         .updated('vless', null);
     device = DeviceSettings.fromJson(_decodeMap(_prefs.getString(_kDevice)));
     selectedV2rayId = _prefs.getString('voidcore.v2ray.selected');
-    v2rayConfigs = _decodeList(_prefs.getString('voidcore.v2ray.configs'))
-        .whereType<Map>()
-        .map(ChainProxy.parse)
-        .whereType<ChainProxy>()
-        .toList();
+    final savedV2rayConfigs = _prefs.getString('voidcore.v2ray.configs');
+    v2rayConfigs = savedV2rayConfigs == null
+        ? List<ChainProxy>.of(_stored.chains)
+        : _decodeList(savedV2rayConfigs)
+            .whereType<Map>()
+            .map(ChainProxy.parse)
+            .whereType<ChainProxy>()
+            .toList();
+    if (savedV2rayConfigs == null && v2rayConfigs.isNotEmpty) {
+      _saveV2rayConfigs();
+    }
+    if (selectedV2rayId != null && !v2rayConfigs.any((c) => c.id == selectedV2rayId)) {
+      selectedV2rayId = null;
+      await _prefs.remove('voidcore.v2ray.selected');
+    }
+    if (selectedV2rayId == null && v2rayConfigs.isNotEmpty) {
+      selectedV2rayId = v2rayConfigs.first.id;
+      await _prefs.setString('voidcore.v2ray.selected', selectedV2rayId!);
+    }
     final v2raySettings = _decodeMap(_prefs.getString('voidcore.v2ray.settings'));
     v2rayAppMode = AppMode.values.asNameMap()[v2raySettings['appMode']] ?? AppMode.vpn;
     v2rayPerAppMode = PerAppMode.values.asNameMap()[v2raySettings['perAppMode']] ?? PerAppMode.off;
