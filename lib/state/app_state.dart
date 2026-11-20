@@ -55,6 +55,7 @@ class AppState extends ChangeNotifier {
   /// Recent connection attempts; contains metadata only, never configuration payloads.
   List<Map<String, dynamic>> connectionHistory = [];
   bool smartConnecting = false;
+  String? activeV2rayId;
   String? smartConnectionStatus;
   bool _cancelSmartConnection = false;
   DateTime? _sessionStartedAt;
@@ -778,6 +779,7 @@ class AppState extends ChangeNotifier {
         _connectMode = null;
       }
     }
+    if (event.status == VpnStatus.disconnected) activeV2rayId = null;
     exitDetail = event.detail;
     if (status == VpnStatus.connected) {
       _startTrafficTimer();
@@ -821,6 +823,11 @@ class AppState extends ChangeNotifier {
 
   Future<void> connect() async {
     if (isBusy) return;
+    if (activeV2rayId != null && status != VpnStatus.disconnected) {
+      await VpnChannel.stop();
+      await _waitUntilDisconnected();
+    }
+    activeV2rayId = null;
     _connectStartedAt = DateTime.now();
     _connectMode = mode.label;
     error = null;
@@ -864,7 +871,116 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> disconnect() => VpnChannel.stop();
+  /// Starts a saved V2Ray workspace profile using the shared Xray/VPN service.
+  /// Any existing engine is stopped first, so only one tunnel can own the VPN interface.
+  Future<bool> connectV2ray(ChainProxy config) async {
+    if (isBusy || smartConnecting) return false;
+    try {
+      if (status != VpnStatus.disconnected) {
+        await VpnChannel.stop();
+        await _waitUntilDisconnected();
+        if (status != VpnStatus.disconnected) {
+          throw StateError('The previous VPN session did not stop.');
+        }
+      }
+      activeV2rayId = config.id;
+      _connectStartedAt = DateTime.now();
+      _connectMode = 'V2Ray · ${config.name}';
+      error = null;
+      status = VpnStatus.connecting;
+      notifyListeners();
+      if (!await VpnChannel.prepare(vpn: !proxyMode)) {
+        throw StateError('VPN permission denied');
+      }
+      final build = await XrayConfigBuilder(profile, device)
+          .buildStandaloneChain(config);
+      await VpnChannel.start(
+        config: build.config,
+        remark: 'V2Ray · ${config.name}',
+        perAppMode: device.perAppMode.name,
+        apps: device.perAppApps,
+        mtu: device.mtu,
+        appendHttpProxy: device.appendHttpProxy,
+        proxyOnly: proxyMode,
+      );
+      return await _waitForConnection();
+    } catch (e) {
+      activeV2rayId = null;
+      status = VpnStatus.disconnected;
+      error = e is StateError ? e.message : '$e';
+      if (_connectStartedAt != null) {
+        _saveHistory(
+          mode: _connectMode ?? 'V2Ray',
+          startedAt: _connectStartedAt!,
+          success: false,
+          reason: 'Connection failed',
+        );
+        _connectStartedAt = null;
+        _connectMode = null;
+      }
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Probes TCP-capable V2Ray endpoints without creating VPN tunnels, then connects
+  /// to the lowest-latency candidate. A failed real connection falls through to the next.
+  Future<ChainProxy?> smartConnectV2ray() async {
+    if ((smartConnecting || isBusy) || profile.chains.isEmpty) return null;
+    smartConnecting = true;
+    smartConnectionStatus = 'Checking V2Ray servers without starting VPN tunnels…';
+    error = null;
+    notifyListeners();
+    try {
+      final measured = <({ChainProxy config, int latency})>[];
+      for (final config in profile.chains) {
+        final info = ChainInfo.of(config.link);
+        if (info == null || info.isUdp) continue;
+        smartConnectionStatus = 'Checking ${config.name}…';
+        notifyListeners();
+        try {
+          final watch = Stopwatch()..start();
+          final socket = await Socket.connect(
+            info.uri.server,
+            info.uri.port,
+            timeout: const Duration(seconds: 4),
+          );
+          watch.stop();
+          socket.destroy();
+          measured.add((config: config, latency: watch.elapsedMilliseconds));
+        } catch (_) {
+          // An unreachable TCP endpoint is excluded; no synthetic ping is reported.
+        }
+      }
+      measured.sort((a, b) => a.latency.compareTo(b.latency));
+      if (measured.isEmpty) {
+        smartConnectionStatus = 'No TCP-reachable V2Ray server was found';
+        return null;
+      }
+      for (final candidate in measured) {
+        smartConnectionStatus = 'Connecting to ${candidate.config.name} · ${candidate.latency} ms…';
+        notifyListeners();
+        if (await connectV2ray(candidate.config)) {
+          smartConnectionStatus = 'Connected · ${candidate.config.name} · ${candidate.latency} ms';
+          return candidate.config;
+        }
+        if (status != VpnStatus.disconnected) {
+          await VpnChannel.stop();
+          await _waitUntilDisconnected();
+        }
+      }
+      smartConnectionStatus = 'All reachable V2Ray servers failed to connect';
+      return null;
+    } finally {
+      smartConnecting = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> disconnect() {
+    activeV2rayId = null;
+    return VpnChannel.stop();
+  }
 
   Future<void> reconnect() async {
     if (status == VpnStatus.disconnected) return connect();
