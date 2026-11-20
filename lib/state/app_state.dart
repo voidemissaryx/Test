@@ -1003,7 +1003,7 @@ class AppState extends ChangeNotifier {
         throw StateError('VPN permission denied');
       }
       final build = await XrayConfigBuilder(profile, device)
-          .buildStandaloneChain(config);
+          .buildStandaloneChain(config, appMode: v2rayAppMode, mtu: v2rayMtu);
       await VpnChannel.start(
         config: build.config,
         remark: 'V2Ray · ${config.name}',
