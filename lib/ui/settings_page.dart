@@ -83,12 +83,6 @@ class SettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 32),
         children: [
-          const SectionHeader('Global'),
-          SettingsCard(
-            children: [
-            ],
-          ),
-          const SizedBox(height: 16),
           SettingsCard(
             children: [
               const TextPref(
