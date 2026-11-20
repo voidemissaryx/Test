@@ -58,7 +58,7 @@ class ConnectionCard extends StatelessWidget {
               ServerlessMode.domainFronting
           ? [ExitNode.worker, ExitNode.psiphon]
           : [ExitNode.worker, ExitNode.psiphon, ExitNode.tor],
-      // The chain proxy is an exit node once there's one the type can carry (Settings → Chain proxies).
+      // VOIDCORE's home selector intentionally excludes the V2Ray workspace's profiles.
       _ => [
         for (final n in ExitNode.values)
           if (n != ExitNode.chain) n,
