@@ -324,7 +324,7 @@ class AppState extends ChangeNotifier {
     if (appMode != null) v2rayAppMode = appMode;
     if (perAppMode != null) v2rayPerAppMode = perAppMode;
     if (apps != null) v2rayPerAppApps = List.of(apps);
-    if (mtu != null) v2rayMtu = mtu.clamp(576, 9000);
+    if (mtu != null) v2rayMtu = mtu.clamp(576, 9000).toInt();
     _prefs.setString('voidcore.v2ray.settings', jsonEncode({
       'appMode': v2rayAppMode.name,
       'perAppMode': v2rayPerAppMode.name,
