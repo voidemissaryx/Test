@@ -42,8 +42,6 @@ class _HomePageState extends State<HomePage> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                 child: Row(children: [
-                  ImageIcon(const AssetImage('assets/icons/ic_stat_vpn.png'), size: 30, color: scheme.primary),
-                  const SizedBox(width: 12),
                   Text('VOIDCORE', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
                 ]),
               ),
@@ -81,11 +79,7 @@ class _HomePageState extends State<HomePage> {
           icon: const Icon(Symbols.menu_rounded),
           onPressed: () => Scaffold.of(context).openDrawer(),
         )),
-        title: Row(mainAxisSize: MainAxisSize.min, children: [
-          ImageIcon(const AssetImage('assets/icons/ic_stat_vpn.png'), size: 24, color: scheme.primary),
-          const SizedBox(width: 8),
-          Flexible(child: Text(_section == _AppSection.voidCore ? 'VOIDCORE' : 'V2rayNG', maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600))),
-        ]),
+        title: Text(_section == _AppSection.voidCore ? 'VOIDCORE' : 'V2rayNG', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
         actions: _section == _AppSection.voidCore ? [
           ChipMenu(values: AppMode.values, selected: state.device.appMode, label: (v) => v == AppMode.proxy ? 'Proxy mode' : 'VPN mode', onSelected: state.setAppMode, enabled: !state.isBusy),
           const SizedBox(width: 4),
