@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,6 +26,27 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
   final Set<String> _selected = {};
   bool _selecting = false;
   String _category = 'All';
+  final Map<String, int> _latencies = {};
+  final Set<String> _probing = {};
+
+  Future<void> _probe(ChainProxy config) async {
+    final info = ChainInfo.of(config.link);
+    if (info == null) { _message('This configuration is invalid.'); return; }
+    if (info.isUdp) { _message('A TCP ping is not valid for this UDP-only endpoint.'); return; }
+    setState(() => _probing.add(config.id));
+    try {
+      final watch = Stopwatch()..start();
+      final socket = await Socket.connect(info.uri.server, info.uri.port, timeout: const Duration(seconds: 4));
+      watch.stop();
+      socket.destroy();
+      if (mounted) setState(() => _latencies[config.id] = watch.elapsedMilliseconds);
+      _message('${config.name}: ${watch.elapsedMilliseconds} ms TCP latency');
+    } catch (e) {
+      _message('${config.name}: endpoint is not reachable over TCP.');
+    } finally {
+      if (mounted) setState(() => _probing.remove(config.id));
+    }
+  }
 
   @override
   void dispose() {
@@ -318,6 +340,32 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                 Text('Configuration manager', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text('Import and organize supported share links. Configurations can be used as chain proxies in VOIDCORE.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                const SizedBox(height: 12),
+                Row(children: [
+                  FilledButton.icon(
+                    onPressed: state.smartConnecting || state.isBusy || all.isEmpty
+                        ? null
+                        : () async {
+                            final selected = await state.smartConnectV2ray();
+                            if (!mounted) return;
+                            _message(selected == null
+                                ? (state.smartConnectionStatus ?? 'No suitable V2Ray server found.')
+                                : 'Connected to ${selected.name}.');
+                          },
+                    icon: state.smartConnecting
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Symbols.bolt_rounded),
+                    label: const Text('Smart Connect'),
+                  ),
+                  const SizedBox(width: 10),
+                  if (state.activeV2rayId != null)
+                    Text(state.isConnected ? 'V2Ray connected' : 'V2Ray connecting…',
+                        style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.primary)),
+                ]),
+                if (state.smartConnectionStatus != null) ...[
+                  const SizedBox(height: 6),
+                  Text(state.smartConnectionStatus!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                ],
                 const SizedBox(height: 14),
                 SearchBar(
                   controller: _search,
@@ -403,6 +451,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: Card(
+                      color: state.activeV2rayId == config.id && state.isConnected ? theme.colorScheme.primaryContainer : null,
                       margin: EdgeInsets.zero,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
@@ -427,6 +476,32 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                             ),
                           )),
                           if (!_selecting) ...[
+                            IconButton(
+                              tooltip: 'Test TCP latency',
+                              onPressed: _probing.contains(config.id) ? null : () => _probe(config),
+                              icon: _probing.contains(config.id)
+                                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Icon(Symbols.speed_rounded),
+                            ),
+                            if (state.activeV2rayId == config.id && state.isConnected)
+                              IconButton(
+                                tooltip: 'Disconnect V2Ray',
+                                onPressed: state.isBusy ? null : () => state.disconnect(),
+                                icon: const Icon(Symbols.stop_circle_rounded),
+                              )
+                            else
+                              IconButton(
+                                tooltip: 'Connect with V2Ray',
+                                onPressed: state.isBusy || state.smartConnecting
+                                    ? null
+                                    : () async {
+                                        final connected = await state.connectV2ray(config);
+                                        if (mounted) _message(connected ? 'Connected to ${config.name}.' : (state.error ?? 'Connection failed.'));
+                                      },
+                                icon: state.activeV2rayId == config.id && state.status == VpnStatus.connecting
+                                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                    : const Icon(Symbols.play_circle_rounded),
+                              ),
                             IconButton(tooltip: config.favorite ? 'Remove favorite' : 'Add favorite', onPressed: () => state.updateChain(config.copyWith(favorite: !config.favorite)), icon: Icon(config.favorite ? Symbols.star_rounded : Symbols.star_outline_rounded, color: config.favorite ? theme.colorScheme.primary : null)),
                             PopupMenuButton<String>(
                               onSelected: (value) {
