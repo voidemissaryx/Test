@@ -1202,10 +1202,22 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> disconnect() {
+  Future<void> disconnect() async {
+    final wasV2ray = activeV2rayId != null;
+    if (wasV2ray) {
+      v2rayConnecting = true;
+      notifyListeners();
+    }
     activeV2rayId = null;
     v2rayNeedsReconnect = false;
-    return VpnChannel.stop();
+    try {
+      await VpnChannel.stop();
+    } finally {
+      if (wasV2ray) {
+        v2rayConnecting = false;
+        notifyListeners();
+      }
+    }
   }
 
   Future<void> reconnect() async {
