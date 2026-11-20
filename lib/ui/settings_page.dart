@@ -12,7 +12,6 @@ import '../services/vpn_channel.dart';
 import '../services/xray_config.dart';
 import '../state/app_state.dart';
 import 'cf_accounts_page.dart';
-import 'chain_proxies_page.dart';
 import 'cloudflare_scanner_page.dart';
 import 'dns_page.dart';
 import 'fragments_page.dart';
@@ -87,19 +86,6 @@ class SettingsPage extends StatelessWidget {
           const SectionHeader('Global'),
           SettingsCard(
             children: [
-              ListTile(
-                leading: const Icon(Symbols.link_rounded),
-                title: const Text('Chain proxies'),
-                subtitle: Text(switch (p.chains.length) {
-                  0 => 'None added',
-                  1 => '1 config',
-                  final n => '$n configs',
-                }),
-                trailing: const Icon(Symbols.chevron_right_rounded),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ChainProxiesPage()),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 16),
