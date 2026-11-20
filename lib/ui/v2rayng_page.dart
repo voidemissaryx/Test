@@ -1151,10 +1151,10 @@ class _V2rayPowerCard extends StatelessWidget {
     final connected = activeId != null && state.isConnected;
     final connecting = state.v2rayConnecting ||
         (activeId != null && state.status == VpnStatus.connecting);
-    final busy = state.v2rayConnecting ||
+    final busy = state.isBusy ||
+        state.v2rayConnecting ||
         state.v2rayDisconnecting ||
-        state.v2raySmartConnecting ||
-        (activeId != null && state.status == VpnStatus.disconnecting);
+        state.v2raySmartConnecting;
     final canTap = !pinging &&
         !busy &&
         !state.smartConnecting &&
