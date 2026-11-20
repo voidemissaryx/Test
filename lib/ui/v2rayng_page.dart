@@ -59,11 +59,11 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
 
-  Future<List<String>?> _chooseV2rayApps() async {
+  Future<List<String>?> _chooseV2rayApps({required List<String> initial}) async {
     try {
       final apps = await VpnChannel.installedApps();
       if (!mounted) return null;
-      final selected = Set<String>.from(AppScope.read(context).v2rayPerAppApps);
+      final selected = Set<String>.from(initial);
       final result = await showDialog<List<String>>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
@@ -108,6 +108,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
     final state = AppScope.read(context);
     var appMode = state.v2rayAppMode;
     var perAppMode = state.v2rayPerAppMode;
+    var apps = List<String>.of(state.v2rayPerAppApps);
     var mtu = state.v2rayMtu;
     final save = await showDialog<bool>(
       context: context,
@@ -142,8 +143,8 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                 alignment: AlignmentDirectional.centerStart,
                 child: OutlinedButton.icon(
                   onPressed: () async {
-                    final apps = await _chooseV2rayApps();
-                    if (apps != null) state.updateV2raySettings(apps: apps);
+                    final chosen = await _chooseV2rayApps(initial: apps);
+                    if (chosen != null) setDialogState(() => apps = chosen);
                   },
                   icon: const Icon(Symbols.apps_rounded),
                   label: Text('Choose apps (${state.v2rayPerAppApps.length})'),
@@ -168,7 +169,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
       ),
     );
     if (save == true && mounted) {
-      state.updateV2raySettings(appMode: appMode, perAppMode: perAppMode, mtu: mtu);
+      state.updateV2raySettings(appMode: appMode, perAppMode: perAppMode, apps: apps, mtu: mtu);
       _message('V2Ray workspace settings saved.');
     }
   }
