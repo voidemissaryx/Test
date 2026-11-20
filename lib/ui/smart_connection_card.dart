@@ -23,12 +23,12 @@ class SmartConnectionCard extends StatelessWidget {
           Row(children: [
             Icon(Symbols.bolt_rounded, color: scheme.primary),
             const SizedBox(width: 8),
-            Expanded(child: Text('Smart Connection', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))),
+            Expanded(child: Text('VOIDCORE Smart Connect', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))),
             if (state.smartConnecting) const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
           ]),
           const SizedBox(height: 6),
           Text(
-            'Check saved V2Ray server endpoints without starting VPN tunnels, then connect to the lowest-latency reachable profile.',
+            'Test the available VOIDCORE connection methods, compare their real tunnel performance, and reconnect using the best result.',
             style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
           if (state.smartConnectionStatus != null) ...[
@@ -44,7 +44,7 @@ class SmartConnectionCard extends StatelessWidget {
           Row(children: [
             Expanded(
               child: FilledButton.icon(
-                onPressed: state.smartConnecting || state.isBusy || state.v2rayConfigs.isEmpty ? null : state.smartConnectV2ray,
+                onPressed: state.smartConnecting || state.isBusy || state.availableModes.isEmpty ? null : () => state.smartConnect(),
                 icon: const Icon(Symbols.speed_rounded),
                 label: const Text('Smart Connect'),
               ),
@@ -60,7 +60,7 @@ class SmartConnectionCard extends StatelessWidget {
           ]),
           const SizedBox(height: 8),
           Text(
-            'TCP endpoints are measured directly without a VPN tunnel. UDP-only profiles are not assigned a fake ping. If the first real Xray connection fails, Smart Connect tries the next reachable profile.',
+            'VOIDCORE tests each available connection method using a real tunnel, then selects the best measured result.',
             style: theme.textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ]),
