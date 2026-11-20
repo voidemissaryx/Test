@@ -42,7 +42,9 @@ class _HomePageState extends State<HomePage> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                 child: Row(children: [
-                  Text('VOIDCORE', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                  Image.asset('assets/icons/ic_stat_vpn.png', width: 30, height: 30, fit: BoxFit.contain),
+                  const SizedBox(width: 10),
+                  Text('VOIDCORE VPN', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
                 ]),
               ),
               const Divider(height: 1),
@@ -203,6 +205,7 @@ class _TrafficRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final voidCoreOwnsTunnel = state.activeV2rayId == null && !state.v2rayConnecting && !state.v2raySmartConnecting;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Column(
@@ -212,16 +215,16 @@ class _TrafficRow extends StatelessWidget {
               Expanded(
                 child: _TrafficCard(
                   icon: Symbols.arrow_downward_rounded,
-                  rate: state.downSpeed,
-                  total: state.totalDown,
+                  rate: voidCoreOwnsTunnel ? state.downSpeed : 0,
+                  total: voidCoreOwnsTunnel ? state.totalDown : 0,
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: _TrafficCard(
                   icon: Symbols.arrow_upward_rounded,
-                  rate: state.upSpeed,
-                  total: state.totalUp,
+                  rate: voidCoreOwnsTunnel ? state.upSpeed : 0,
+                  total: voidCoreOwnsTunnel ? state.totalUp : 0,
                 ),
               ),
             ],
