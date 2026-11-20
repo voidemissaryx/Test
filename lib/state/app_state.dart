@@ -302,15 +302,6 @@ class AppState extends ChangeNotifier {
   void setExitNode(ExitNode value) =>
       write('device.exit.nodes.${mode.name}', value.name);
 
-  /// The chain proxies the current type can carry, and the one it exits through.
-  List<ChainProxy> get usableChains =>
-      XrayConfigBuilder.chainsFor(mode, profile.chains);
-  ChainProxy? get exitChain =>
-      XrayConfigBuilder.chainFor(mode, device, profile.chains);
-
-  void setExitChain(ChainProxy chain) =>
-      write('device.exit.chains.${mode.name}', chain.id);
-
   /// Selects the workspace profile independently from the currently active VPN engine.
   void selectV2ray(ChainProxy config) {
     selectedV2rayId = config.id;
@@ -347,7 +338,7 @@ class AppState extends ChangeNotifier {
     );
   }
 
-  /// Adds V2Ray workspace entries to their own store, separate from chain proxies.
+  /// Adds V2Ray workspace entries to their own store.
   void addV2rayConfigs(List<ChainProxy> configs) {
     final existing = v2rayConfigs.map((c) => c.link).toSet();
     for (final config in configs) {
@@ -390,46 +381,6 @@ class AppState extends ChangeNotifier {
     v2rayConfigs = v2rayConfigs.where((c) => c.id != config.id).toList();
     _saveV2rayConfigs();
     notifyListeners();
-  }
-
-  /// Adds chain proxies (Settings → Chain proxies).
-  void addChains(List<ChainProxy> chains) {
-    final existing = profile.chains.map((c) => c.link).toSet();
-    final added = <ChainProxy>[];
-    for (final chain in chains) {
-      if (existing.add(chain.link)) added.add(chain);
-    }
-    if (added.isNotEmpty) {
-      write('chains', [...profile.chains, ...added].map((c) => c.toJson()).toList());
-    }
-  }
-
-  void updateChain(ChainProxy updated) => write('chains', [
-    for (final c in profile.chains)
-      (c.id == updated.id ? updated : c).toJson(),
-  ]);
-
-  void duplicateChain(ChainProxy chain) {
-    final duplicate = ChainProxy(
-      id: newChainId(),
-      name: '${chain.name} (copy)',
-      link: chain.link,
-      favorite: false,
-      category: chain.category,
-    );
-    write('chains', [...profile.chains, duplicate].map((c) => c.toJson()).toList());
-  }
-
-  void deleteChain(ChainProxy chain) {
-    if (selectedV2rayId == chain.id) {
-      selectedV2rayId = null;
-      _prefs.remove('voidcore.v2ray.selected');
-    }
-    if (activeV2rayId == chain.id) unawaited(disconnect());
-    write('chains', [
-    for (final c in profile.chains)
-      if (c.id != chain.id) c.toJson(),
-    ]);
   }
 
   /// [region]: an exitRegions code, or empty for the fastest (any region).
