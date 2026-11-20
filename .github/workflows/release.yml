@@ -52,7 +52,7 @@ jobs:
           if [ -n "$TAG" ]; then
             echo "Tag $TAG already exists; building that exact tag without creating another."
             git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
-            git checkout --detach "$TAG"
+            echo "Keeping the workflow-dispatch branch commit $(git rev-parse --short HEAD) for this rebuild."
 
             TAG_VERSION=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)
             echo "Building existing tag $TAG (tagged pubspec version: ${TAG_VERSION:-unknown}); the existing tag is authoritative."
