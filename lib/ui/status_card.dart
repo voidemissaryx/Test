@@ -484,7 +484,9 @@ class _PowerButtonState extends State<_PowerButton> {
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   // Always tappable: while connecting (Psiphon may search for a long time) it cancels.
-                  onTap: busy
+                  // A connection attempt must remain cancellable. Only block taps
+                  // during disconnecting or V2Ray's own transition states.
+                  onTap: busy && homeStatus != VpnStatus.connecting
                       ? null
                       : v2rayOwnsTunnel
                           ? (state.activeV2rayId != null ? state.connect : null)
