@@ -28,7 +28,7 @@ class SmartConnectionCard extends StatelessWidget {
           ]),
           const SizedBox(height: 6),
           Text(
-            'Compare configured methods using three latency samples and a small download test when reachable, then reconnect with the best measured result.',
+            'Check saved V2Ray server endpoints without starting VPN tunnels, then connect to the lowest-latency reachable profile.',
             style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
           if (state.smartConnectionStatus != null) ...[
@@ -44,7 +44,7 @@ class SmartConnectionCard extends StatelessWidget {
           Row(children: [
             Expanded(
               child: FilledButton.icon(
-                onPressed: state.smartConnecting || state.isBusy ? null : state.smartConnect,
+                onPressed: state.smartConnecting || state.isBusy || state.profile.chains.isEmpty ? null : state.smartConnectV2ray,
                 icon: const Icon(Symbols.speed_rounded),
                 label: const Text('Smart Connect'),
               ),
@@ -60,7 +60,7 @@ class SmartConnectionCard extends StatelessWidget {
           ]),
           const SizedBox(height: 8),
           Text(
-            'Tests temporarily start and stop each available method. Download speed is measured through the tunnel when the test endpoint is reachable; otherwise latency is used.',
+            'TCP endpoints are measured directly without a VPN tunnel. UDP-only profiles are not assigned a fake ping. If the first real Xray connection fails, Smart Connect tries the next reachable profile.',
             style: theme.textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ]),
