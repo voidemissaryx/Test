@@ -1110,7 +1110,7 @@ class AppState extends ChangeNotifier {
     v2raySmartConnecting = true;
     _smartV2rayConnecting = true;
     _cancelV2raySmartConnection = false;
-    v2raySmartConnectionStatus = 'Checking V2Ray servers without starting VPN tunnels…';
+    v2raySmartConnectionStatus = 'Checking servers…';
     error = null;
     notifyListeners();
     try {
@@ -1132,7 +1132,7 @@ class AppState extends ChangeNotifier {
           skippedUdpOnly++;
           continue;
         }
-        v2raySmartConnectionStatus = 'Checking ${config.name}…';
+        v2raySmartConnectionStatus = 'Checking servers…';
         notifyListeners();
         try {
           final watch = Stopwatch()..start();
@@ -1161,10 +1161,10 @@ class AppState extends ChangeNotifier {
       }
       for (final candidate in measured) {
         if (_cancelV2raySmartConnection) break;
-        v2raySmartConnectionStatus = 'Connecting to ${candidate.config.name} · ${candidate.latency} ms…';
+        v2raySmartConnectionStatus = 'Connecting';
         notifyListeners();
         if (await connectV2ray(candidate.config, fromSmartConnect: true)) {
-          v2raySmartConnectionStatus = 'Connected · ${candidate.config.name} · ${candidate.latency} ms';
+          v2raySmartConnectionStatus = 'Connected';
           return candidate.config;
         }
         if (_cancelV2raySmartConnection) break;
