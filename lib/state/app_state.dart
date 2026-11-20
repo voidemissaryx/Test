@@ -945,6 +945,14 @@ class AppState extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
+      // Probe the physical network, not an existing VPN tunnel.
+      if (status != VpnStatus.disconnected) {
+        await VpnChannel.stop();
+        await _waitUntilDisconnected();
+        if (status != VpnStatus.disconnected) {
+          throw StateError('The previous VPN session did not stop before server checks.');
+        }
+      }
       final measured = <({ChainProxy config, int latency})>[];
       for (final config in profile.chains) {
         final info = ChainInfo.of(config.link);
