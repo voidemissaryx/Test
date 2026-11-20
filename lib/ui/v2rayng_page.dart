@@ -724,7 +724,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Icon(Symbols.network_ping_rounded, size: 18, color: theme.colorScheme.primary),
+                      Icon(Symbols.speed_rounded, size: 18, color: theme.colorScheme.primary),
                       const SizedBox(width: 8),
                       Expanded(child: Text(_pingAllSummary!, style: theme.textTheme.bodySmall)),
                     ]),
@@ -878,7 +878,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                                   ),
                                   if (latency != null) Chip(
                                     avatar: Icon(
-                                      latency < 0 ? Symbols.error_outline_rounded : Symbols.network_ping_rounded,
+                                      latency < 0 ? Icons.error_outline_rounded : Symbols.network_ping_rounded,
                                       size: 14,
                                     ),
                                     label: Text(latency < 0 ? 'Timeout' : '${latency} ms'),
