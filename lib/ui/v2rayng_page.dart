@@ -1165,75 +1165,103 @@ class _V2rayPowerCard extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
         child: Column(
           children: [
-            Text('V2RayNG', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text(
+              'V2RayNG',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 14),
             Semantics(
               button: true,
-              label: pinging ? 'V2Ray latency test in progress' : connected ? 'Disconnect V2Ray' : 'Connect selected V2Ray profile',
+              label: pinging
+                  ? 'V2Ray latency test in progress'
+                  : connected
+                      ? 'Disconnect V2Ray'
+                      : 'Connect selected V2Ray profile',
               child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color.lerp(fill, Colors.white, .18)!, fill],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: fill.withValues(alpha: connected ? .45 : .30),
-                        blurRadius: connected ? 30 : 24,
-                        offset: const Offset(0, 9),
-                      ),
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: .22),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
+                duration: const Duration(milliseconds: 250),
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color.lerp(fill, Colors.white, .18)!,
+                      fill,
                     ],
                   ),
-                  child: Material(
-                    type: MaterialType.transparency,
-                    shape: const CircleBorder(),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: canTap ? toggle : null,
-                      child: Stack(
-                        alignment: Alignment.center,
-                    children: [
-                      if (busy || pinging)
-                        const SizedBox(
-                          width: 112,
-                          height: 112,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 3,
-                            strokeCap: StrokeCap.round,
-                            color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: fill.withValues(alpha: connected ? .45 : .30),
+                      blurRadius: connected ? 30 : 24,
+                      offset: const Offset(0, 9),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: .22),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: canTap ? toggle : null,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        if (busy || pinging)
+                          const SizedBox(
+                            width: 112,
+                            height: 112,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 3,
+                              strokeCap: StrokeCap.round,
+                              color: Colors.white,
+                            ),
+                          ),
+                        AnimatedRotation(
+                          turns: connected || connecting ? 0 : .5,
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeOutCubic,
+                          child: Icon(
+                            Symbols.power_settings_new_rounded,
+                            size: 58,
+                            color: iconColor,
                           ),
                         ),
-                      AnimatedRotation(
-                        turns: connected || connecting ? 0 : .5,
-                        duration: const Duration(milliseconds: 500),
-                        curve: Curves.easeOutCubic,
-                        child: Icon(Symbols.power_settings_new_rounded, size: 58, color: iconColor),
-                      ),
-                        ],
-                      ),
+                      ],
                     ),
                   ),
                 ),
               ),
+            ),
             const SizedBox(height: 12),
-            Text(statusText, style: theme.textTheme.titleSmall?.copyWith(
-              color: connected ? const Color(0xFF1FA463) : scheme.onSurface,
-              fontWeight: FontWeight.w700,
-            ), textAlign: TextAlign.center),
+            Text(
+              statusText,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: connected
+                    ? const Color(0xFF1FA463)
+                    : scheme.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 3),
-            Text(profileText, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+            Text(
+              profileText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       ),
