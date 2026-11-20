@@ -19,6 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Debug checkout and donation files
+        run: |
+          echo "Branch: $GITHUB_REF"
+          echo "Commit: $(git rev-parse HEAD)"
+          echo "Donation files:"
+          find test lib -iname '*donat*' -print
+
       - name: Check the tag against pubspec.yaml
         run: |
           version=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)
@@ -33,13 +40,6 @@ jobs:
           fi
 
           echo "VERSION=$version" >> "$GITHUB_ENV"
-
-      - name: Debug checkout and donation files
-        run: |
-          echo "Branch: $GITHUB_REF"
-          echo "Commit: $(git rev-parse HEAD)"
-          echo "Donation files:"
-          find test lib -iname '*donat*' -print
 
       - uses: actions/setup-java@v4
         with:
