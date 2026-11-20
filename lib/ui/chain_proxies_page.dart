@@ -352,9 +352,13 @@ class _ChainTile extends StatelessWidget {
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (chain.category.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(chain.category, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary)),
+                if (chain.category?.isNotEmpty == true) ...[
+                  Text(
+                    chain.category!,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
                 ],
                 if (info != null) ...[
                   const SizedBox(height: 6),
