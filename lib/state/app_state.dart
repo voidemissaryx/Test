@@ -873,8 +873,8 @@ class AppState extends ChangeNotifier {
 
   /// Starts a saved V2Ray workspace profile using the shared Xray/VPN service.
   /// Any existing engine is stopped first, so only one tunnel can own the VPN interface.
-  Future<bool> connectV2ray(ChainProxy config) async {
-    if (isBusy || smartConnecting) return false;
+  Future<bool> connectV2ray(ChainProxy config, {bool fromSmartConnect = false}) async {
+    if (isBusy || (smartConnecting && !fromSmartConnect)) return false;
     try {
       if (status != VpnStatus.disconnected) {
         await VpnChannel.stop();
@@ -903,7 +903,13 @@ class AppState extends ChangeNotifier {
         appendHttpProxy: device.appendHttpProxy,
         proxyOnly: proxyMode,
       );
-      return await _waitForConnection();
+      final connected = await _waitForConnection();
+      if (!connected) {
+        await VpnChannel.stop();
+        await _waitUntilDisconnected();
+        activeV2rayId = null;
+      }
+      return connected;
     } catch (e) {
       activeV2rayId = null;
       status = VpnStatus.disconnected;
@@ -960,7 +966,7 @@ class AppState extends ChangeNotifier {
       for (final candidate in measured) {
         smartConnectionStatus = 'Connecting to ${candidate.config.name} · ${candidate.latency} ms…';
         notifyListeners();
-        if (await connectV2ray(candidate.config)) {
+        if (await connectV2ray(candidate.config, fromSmartConnect: true)) {
           smartConnectionStatus = 'Connected · ${candidate.config.name} · ${candidate.latency} ms';
           return candidate.config;
         }
