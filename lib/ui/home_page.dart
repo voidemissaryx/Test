@@ -215,16 +215,18 @@ class _TrafficRow extends StatelessWidget {
               Expanded(
                 child: _TrafficCard(
                   icon: Symbols.arrow_downward_rounded,
-                  rate: voidCoreOwnsTunnel ? state.downSpeed : 0,
-                  total: voidCoreOwnsTunnel ? state.totalDown : 0,
+                  rate: state.downSpeed,
+                  total: state.totalDown,
+                  enabled: voidCoreOwnsTunnel,
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: _TrafficCard(
                   icon: Symbols.arrow_upward_rounded,
-                  rate: voidCoreOwnsTunnel ? state.upSpeed : 0,
-                  total: voidCoreOwnsTunnel ? state.totalUp : 0,
+                  rate: state.upSpeed,
+                  total: state.totalUp,
+                  enabled: voidCoreOwnsTunnel,
                 ),
               ),
             ],
@@ -239,10 +241,12 @@ class _TrafficCard extends StatelessWidget {
   final IconData icon;
   final int rate;
   final int total;
+  final bool enabled;
   const _TrafficCard({
     required this.icon,
     required this.rate,
     required this.total,
+    this.enabled = true,
   });
 
   @override
@@ -271,7 +275,7 @@ class _TrafficCard extends StatelessWidget {
                 Icon(icon, size: 18, weight: 600, color: muted),
                 const SizedBox(width: 6),
                 Text(
-                  '${formatBytes(rate)}/s',
+                  enabled ? '${formatBytes(rate)}/s' : '—',
                   style: theme.textTheme.titleMedium
                       ?.copyWith(fontWeight: FontWeight.w600)
                       .merge(_tabular),
@@ -281,7 +285,7 @@ class _TrafficCard extends StatelessWidget {
             const SizedBox(height: 4),
             const SizedBox(height: 2),
             Text(
-              'Total ${formatBytes(total)}',
+              enabled ? 'Total ${formatBytes(total)}' : 'Total —',
               style: theme.textTheme.bodyMedium
                   ?.copyWith(color: muted)
                   .merge(_tabular),
