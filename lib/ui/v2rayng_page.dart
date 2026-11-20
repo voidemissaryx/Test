@@ -447,7 +447,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
     final url = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Import subscription URL'),
+        title: const Text('Add subscription link'),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -456,7 +456,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Fetch')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Add')),
         ],
       ),
     );
@@ -467,17 +467,11 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
       _message('Enter a valid HTTP or HTTPS URL.');
       return;
     }
-    try {
-      _message('Downloading subscription…');
-      final response = await http.get(uri).timeout(const Duration(seconds: 25));
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        _message('Subscription request failed: HTTP ${response.statusCode}');
-        return;
-      }
-      _importText(response.body);
-    } catch (e) {
-      _message('Could not download subscription: $e');
-    }
+    final state = AppScope.read(context);
+    final id = newChainId();
+    state.addV2raySubscription(id: id, name: uri.host, url: url);
+    final item = state.v2raySubscriptions.firstWhere((entry) => entry['id'] == id);
+    await _refreshSubscription(item);
   }
 
 
@@ -540,7 +534,16 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
       }
       final parsed = parseChainProxies(_decodeSubscription(response.body), fileName: subscription['name']);
       final state = AppScope.read(context);
-      state.replaceV2raySubscriptionConfigs(subscription['id']!, parsed);
+      final id = subscription['id']!;
+      final stillSaved = state.v2raySubscriptions.any(
+        (item) => item['id'] == id && item['url'] == subscription['url'],
+      );
+      if (!stillSaved) return;
+      if (state.status != VpnStatus.disconnected || state.smartConnecting || state.v2raySmartConnecting) {
+        _message('Subscription downloaded, but the connection changed. Update again after disconnecting.');
+        return;
+      }
+      state.replaceV2raySubscriptionConfigs(id, parsed);
       _message('Updated ${subscription['name']} · ${parsed.length} profiles.');
     } catch (e) {
       _message('Could not update subscription: $e');
@@ -1105,8 +1108,7 @@ class _V2rayPowerCard extends StatelessWidget {
     final connected = activeId != null && state.isConnected;
     final connecting = activeId != null && state.status == VpnStatus.connecting;
     final busy = state.isBusy;
-    final switchingFromVoidCore = activeId == null && state.status == VpnStatus.connected;
-    final canTap = pinging || state.v2raySmartConnecting
+    final canTap = pinging || state.v2raySmartConnecting || state.smartConnecting
         ? false
         : activeId != null
             ? state.status != VpnStatus.disconnecting
@@ -1123,11 +1125,9 @@ class _V2rayPowerCard extends StatelessWidget {
         ? 'Connected'
         : connecting
             ? 'Connecting'
-            : state.status == VpnStatus.disconnecting && activeId != null
-                ? 'Disconnecting…'
-                : selectedConfig == null
-                    ? 'Disconnected'
-                    : 'Disconnected';
+            : state.status == VpnStatus.disconnecting
+                ? 'Disconnecting'
+                : 'Disconnected';
     final profileText = activeConfig?.name ?? selectedConfig?.name ?? 'No profile selected';
 
     Future<void> toggle() async {
