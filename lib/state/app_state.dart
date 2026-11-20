@@ -851,7 +851,7 @@ class AppState extends ChangeNotifier {
 
       if (_cancelSmartConnection) {
         setMode(originalMode);
-        smartConnectionStatus = 'Smart Connect cancelled';
+        smartConnectionStatus = 'Auto Connect cancelled';
         if (wasInitiallyConnected && !isConnected) await connect();
         return null;
       }
@@ -1103,8 +1103,8 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Probes TCP-capable V2Ray endpoints without creating VPN tunnels, then connects
-  /// to the lowest-latency candidate. A failed real connection falls through to the next.
+  /// Auto Connect probes TCP-capable V2Ray endpoints, then tries the lowest-latency
+  /// candidates in order. A failed real connection falls through to the next.
   Future<ChainProxy?> smartConnectV2ray() async {
     if ((smartConnecting || v2raySmartConnecting || isBusy) || v2rayConfigs.isEmpty) return null;
     v2raySmartConnecting = true;
@@ -1149,7 +1149,7 @@ class AppState extends ChangeNotifier {
         }
       }
       if (_cancelV2raySmartConnection) {
-        v2raySmartConnectionStatus = 'Smart Connect cancelled';
+        v2raySmartConnectionStatus = 'Auto Connect cancelled';
         return null;
       }
       measured.sort((a, b) => a.latency.compareTo(b.latency));
@@ -1174,7 +1174,7 @@ class AppState extends ChangeNotifier {
         }
       }
       if (_cancelV2raySmartConnection) {
-        v2raySmartConnectionStatus = 'Smart Connect cancelled';
+        v2raySmartConnectionStatus = 'Auto Connect cancelled';
         return null;
       }
       v2raySmartConnectionStatus = 'All reachable V2Ray servers failed to connect';
