@@ -44,7 +44,7 @@ class SmartConnectionCard extends StatelessWidget {
           Row(children: [
             Expanded(
               child: FilledButton.icon(
-                onPressed: state.smartConnecting || state.isBusy || state.profile.chains.isEmpty ? null : state.smartConnectV2ray,
+                onPressed: state.smartConnecting || state.isBusy || state.v2rayConfigs.isEmpty ? null : state.smartConnectV2ray,
                 icon: const Icon(Symbols.speed_rounded),
                 label: const Text('Smart Connect'),
               ),
