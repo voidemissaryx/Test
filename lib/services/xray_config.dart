@@ -459,7 +459,7 @@ class XrayConfigBuilder {
     final config = await _buildConfig(
       outbounds: [outbound],
       isBalancer: false,
-      outboundAddrs: [selected.link],
+      outboundAddrs: [ProxyUri.parse(selected.link).server],
     );
     return XrayBuild(config);
   }
