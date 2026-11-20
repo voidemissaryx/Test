@@ -1020,8 +1020,8 @@ class _V2rayPowerCard extends StatelessWidget {
                 customBorder: const CircleBorder(),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
-                  width: 88,
-                  height: 88,
+                  width: 100,
+                  height: 100,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
@@ -1040,10 +1040,10 @@ class _V2rayPowerCard extends StatelessWidget {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      if (busy)
+                      if (busy || pinging)
                         const SizedBox(
-                          width: 78,
-                          height: 78,
+                          width: 90,
+                          height: 90,
                           child: CircularProgressIndicator(
                             strokeWidth: 3,
                             strokeCap: StrokeCap.round,
