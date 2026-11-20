@@ -822,12 +822,12 @@ class AppState extends ChangeNotifier {
       status == VpnStatus.disconnected ? connect() : disconnect();
 
   Future<void> connect() async {
-    if (isBusy) return;
-    if (activeV2rayId != null && status != VpnStatus.disconnected) {
+    if (isBusy || smartConnecting) return;
+    if (status != VpnStatus.disconnected) {
       await VpnChannel.stop();
       await _waitUntilDisconnected();
       if (status != VpnStatus.disconnected) {
-        error = 'The V2Ray session did not stop; refusing to start another engine.';
+        error = 'The previous VPN session did not stop; refusing to start another engine.';
         notifyListeners();
         return;
       }
@@ -1004,8 +1004,15 @@ class AppState extends ChangeNotifier {
       activeV2rayId = null;
     }
     if (status == VpnStatus.disconnected) return connect();
-    // Starting again replaces the running session in the service.
+    // Stop the current engine before starting the newly selected mode/configuration.
     needsReconnect = false;
+    await VpnChannel.stop();
+    await _waitUntilDisconnected();
+    if (status != VpnStatus.disconnected) {
+      error = 'The previous VPN session did not stop.';
+      notifyListeners();
+      return;
+    }
     // Switching from Proxy to VPN mode needs the VPN permission.
     if (!await VpnChannel.prepare(vpn: !proxyMode)) {
       error = 'VPN permission denied';
