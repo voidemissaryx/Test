@@ -54,6 +54,7 @@ class AppState extends ChangeNotifier {
 
   /// Recent connection attempts; contains metadata only, never configuration payloads.
   List<Map<String, dynamic>> connectionHistory = [];
+  List<ChainProxy> v2rayConfigs = [];
   bool smartConnecting = false;
   String? activeV2rayId;
   String? selectedV2rayId;
@@ -309,6 +310,54 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _saveV2rayConfigs() {
+    _prefs.setString(
+      'voidcore.v2ray.configs',
+      jsonEncode(v2rayConfigs.map((c) => c.toJson()).toList()),
+    );
+  }
+
+  /// Adds V2Ray workspace entries to their own store, separate from chain proxies.
+  void addV2rayConfigs(List<ChainProxy> configs) {
+    final existing = v2rayConfigs.map((c) => c.link).toSet();
+    for (final config in configs) {
+      if (existing.add(config.link)) v2rayConfigs.add(config);
+    }
+    _saveV2rayConfigs();
+    notifyListeners();
+  }
+
+  void updateV2rayConfig(ChainProxy updated) {
+    v2rayConfigs = [
+      for (final config in v2rayConfigs)
+        if (config.id == updated.id) updated else config,
+    ];
+    _saveV2rayConfigs();
+    notifyListeners();
+  }
+
+  void duplicateV2rayConfig(ChainProxy config) {
+    v2rayConfigs.add(ChainProxy(
+      id: newChainId(),
+      name: '${config.name} (copy)',
+      link: config.link,
+      category: config.category,
+    ));
+    _saveV2rayConfigs();
+    notifyListeners();
+  }
+
+  void deleteV2rayConfig(ChainProxy config) {
+    if (selectedV2rayId == config.id) {
+      selectedV2rayId = null;
+      _prefs.remove('voidcore.v2ray.selected');
+    }
+    if (activeV2rayId == config.id) unawaited(disconnect());
+    v2rayConfigs = v2rayConfigs.where((c) => c.id != config.id).toList();
+    _saveV2rayConfigs();
+    notifyListeners();
+  }
+
   /// Adds chain proxies (Settings → Chain proxies).
   void addChains(List<ChainProxy> chains) {
     final existing = profile.chains.map((c) => c.link).toSet();
@@ -386,6 +435,11 @@ class AppState extends ChangeNotifier {
         .updated('vless', null);
     device = DeviceSettings.fromJson(_decodeMap(_prefs.getString(_kDevice)));
     selectedV2rayId = _prefs.getString('voidcore.v2ray.selected');
+    v2rayConfigs = _decodeList(_prefs.getString('voidcore.v2ray.configs'))
+        .whereType<Map>()
+        .map(ChainProxy.parse)
+        .whereType<ChainProxy>()
+        .toList();
     connectionHistory = (_decodeList(_prefs.getString(_kConnectionHistory)))
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
@@ -962,7 +1016,7 @@ class AppState extends ChangeNotifier {
   /// Probes TCP-capable V2Ray endpoints without creating VPN tunnels, then connects
   /// to the lowest-latency candidate. A failed real connection falls through to the next.
   Future<ChainProxy?> smartConnectV2ray() async {
-    if ((smartConnecting || isBusy) || profile.chains.isEmpty) return null;
+    if ((smartConnecting || isBusy) || v2rayConfigs.isEmpty) return null;
     smartConnecting = true;
     _smartV2rayConnecting = true;
     _cancelSmartConnection = false;
@@ -979,7 +1033,7 @@ class AppState extends ChangeNotifier {
         }
       }
       final measured = <({ChainProxy config, int latency})>[];
-      for (final config in profile.chains) {
+      for (final config in v2rayConfigs) {
         if (_cancelSmartConnection) break;
         final info = ChainInfo.of(config.link);
         if (info == null || info.isUdp) continue;
@@ -1044,7 +1098,7 @@ class AppState extends ChangeNotifier {
   Future<void> reconnect() async {
     final v2rayId = activeV2rayId;
     if (v2rayId != null) {
-      final saved = profile.chains.where((c) => c.id == v2rayId).firstOrNull;
+      final saved = v2rayConfigs.where((c) => c.id == v2rayId).firstOrNull;
       if (saved != null) {
         await connectV2ray(saved);
         return;
