@@ -1152,6 +1152,7 @@ class _V2rayPowerCard extends StatelessWidget {
     final connecting = state.v2rayConnecting ||
         (activeId != null && state.status == VpnStatus.connecting);
     final busy = state.v2rayConnecting ||
+        state.v2rayDisconnecting ||
         state.v2raySmartConnecting ||
         (activeId != null && state.status == VpnStatus.disconnecting);
     final canTap = !pinging &&
@@ -1170,12 +1171,12 @@ class _V2rayPowerCard extends StatelessWidget {
             : (connecting ? scheme.onPrimary : scheme.onPrimaryContainer);
     final statusText = pinging
         ? 'Testing server latency…'
-        : connected
-            ? 'Connected'
-            : connecting
-                ? 'Connecting'
-                : activeId != null && state.status == VpnStatus.disconnecting
-                    ? 'Disconnecting'
+        : state.v2rayDisconnecting || (activeId != null && state.status == VpnStatus.disconnecting)
+            ? 'Disconnecting'
+            : connected
+                ? 'Connected'
+                : connecting
+                    ? 'Connecting'
                     : hasConfigs
                         ? 'Disconnected'
                         : 'No configurations';
