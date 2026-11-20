@@ -30,34 +30,42 @@ jobs:
         run: |
           set -euo pipefail
 
-          VERSION="$VERSION_INPUT"
-          if [[ ! "$VERSION" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]]; then
-            echo "::error::Invalid version format. Use X.Y.Z (for example 1.5.0)"
+          VERSION="${VERSION_INPUT#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::Invalid version format. Use X.Y or X.Y.Z (for example 1.5 or 1.5.0)"
             exit 1
           fi
 
-          TAG="v$VERSION"
+          PUBSPEC_VERSION="$VERSION"
+          if [[ "$PUBSPEC_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            PUBSPEC_VERSION="$PUBSPEC_VERSION.0"
+          fi
 
-          # If the requested release tag already exists, build the exact
-          # commit referenced by that tag. Never rewrite pubspec or create
-          # another tag in this path.
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists; checking out its existing release."
+          TAG=""
+          for candidate in "$VERSION" "v$VERSION"; do
+            if git ls-remote --exit-code --tags origin "refs/tags/$candidate" >/dev/null 2>&1; then
+              TAG="$candidate"
+              break
+            fi
+          done
+
+          if [ -n "$TAG" ]; then
+            echo "Tag $TAG already exists; building that exact tag without creating another."
             git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
             git checkout --detach "$TAG"
 
-            TAG_VERSION=$(sed -n 's/^version: *\\([^+]*\\).*/\\1/p' pubspec.yaml)
-            if [ "$TAG_VERSION" != "$VERSION" ]; then
+            TAG_VERSION=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)
+            if [ "$TAG_VERSION" != "$PUBSPEC_VERSION" ] && [ "$TAG_VERSION" != "$VERSION" ]; then
               echo "::error::Existing tag $TAG contains pubspec version $TAG_VERSION, not $VERSION"
               exit 1
             fi
-
             echo "EXISTING_TAG=true" >> "$GITHUB_ENV"
           else
+            TAG="v$VERSION"
             echo "Tag $TAG does not exist; preparing a new release."
-            BUILD_NUMBER=$(grep '^version:' pubspec.yaml | sed -E 's/.*\\+([0-9]+).*/\\1/')
+            BUILD_NUMBER=$(grep '^version:' pubspec.yaml | sed -E 's/.*\+([0-9]+).*/\1/')
             BUILD_NUMBER=$((BUILD_NUMBER + 1))
-            sed -i -E "s/^version:.*/version: ${VERSION}+${BUILD_NUMBER}/" pubspec.yaml
+            sed -i -E "s/^version:.*/version: ${PUBSPEC_VERSION}+${BUILD_NUMBER}/" pubspec.yaml
 
             echo "EXISTING_TAG=false" >> "$GITHUB_ENV"
             git config user.name "github-actions[bot]"
