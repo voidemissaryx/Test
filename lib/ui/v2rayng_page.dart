@@ -334,10 +334,23 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                     icon: Icon(_selecting ? Symbols.close_rounded : Symbols.checklist_rounded),
                     label: Text(_selecting ? 'Done' : 'Select'),
                   ),
+                  if (_selecting)
+                    TextButton(
+                      onPressed: () => setState(() {
+                        if (_selected.length == configs.length) {
+                          _selected.clear();
+                        } else {
+                          _selected
+                            ..clear()
+                            ..addAll(configs.map((c) => c.id));
+                        }
+                      }),
+                      child: Text(_selected.length == configs.length ? 'Deselect all' : 'Select all'),
+                    ),
                   PopupMenuButton<String>(
                     tooltip: 'Export',
                     icon: const Icon(Symbols.ios_share_rounded),
-                    onSelected: (value) => _export(value == 'all' ? configs : configs.where((c) => _selected.contains(c.id)).toList(), asFile: value.endsWith('file')),
+                    onSelected: (value) => _export(value.startsWith('all-') ? configs : configs.where((c) => _selected.contains(c.id)).toList(), asFile: value.endsWith('file')),
                     itemBuilder: (_) => const [
                       PopupMenuItem(value: 'selected-copy', child: Text('Copy selected')),
                       PopupMenuItem(value: 'selected-file', child: Text('Save selected as file')),
