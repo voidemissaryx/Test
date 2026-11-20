@@ -205,7 +205,7 @@ class _TrafficRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    final voidCoreOwnsTunnel = state.activeV2rayId == null && !state.v2rayConnecting && !state.v2raySmartConnecting;
+    final voidCoreOwnsTunnel = state.activeV2rayId == null && !state.v2rayConnecting && !state.v2rayDisconnecting && !state.v2raySmartConnecting;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Column(
