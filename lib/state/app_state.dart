@@ -56,6 +56,7 @@ class AppState extends ChangeNotifier {
   List<Map<String, dynamic>> connectionHistory = [];
   bool smartConnecting = false;
   String? activeV2rayId;
+  String? selectedV2rayId;
   bool _smartV2rayConnecting = false;
   String? smartConnectionStatus;
   bool _cancelSmartConnection = false;
@@ -301,6 +302,13 @@ class AppState extends ChangeNotifier {
   void setExitChain(ChainProxy chain) =>
       write('device.exit.chains.${mode.name}', chain.id);
 
+  /// Selects the workspace profile independently from the currently active VPN engine.
+  void selectV2ray(ChainProxy config) {
+    selectedV2rayId = config.id;
+    _prefs.setString('voidcore.v2ray.selected', config.id);
+    notifyListeners();
+  }
+
   /// Adds chain proxies (Settings → Chain proxies).
   void addChains(List<ChainProxy> chains) {
     final existing = profile.chains.map((c) => c.link).toSet();
@@ -329,10 +337,16 @@ class AppState extends ChangeNotifier {
     write('chains', [...profile.chains, duplicate].map((c) => c.toJson()).toList());
   }
 
-  void deleteChain(ChainProxy chain) => write('chains', [
+  void deleteChain(ChainProxy chain) {
+    if (selectedV2rayId == chain.id) {
+      selectedV2rayId = null;
+      _prefs.remove('voidcore.v2ray.selected');
+    }
+    write('chains', [
     for (final c in profile.chains)
       if (c.id != chain.id) c.toJson(),
-  ]);
+    ]);
+  }
 
   /// [region]: an exitRegions code, or empty for the fastest (any region).
   void setExitRegion(String region) => write('device.exit.region', region);
@@ -370,6 +384,7 @@ class AppState extends ChangeNotifier {
     _stored = Profile.fromJson(_decodeMap(_prefs.getString(_kProfile)))
         .updated('vless', null);
     device = DeviceSettings.fromJson(_decodeMap(_prefs.getString(_kDevice)));
+    selectedV2rayId = _prefs.getString('voidcore.v2ray.selected');
     connectionHistory = (_decodeList(_prefs.getString(_kConnectionHistory)))
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
@@ -890,6 +905,7 @@ class AppState extends ChangeNotifier {
         }
       }
       activeV2rayId = config.id;
+      selectV2ray(config);
       _connectStartedAt = DateTime.now();
       _connectMode = 'V2Ray · ${config.name}';
       error = null;
