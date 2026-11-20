@@ -1105,12 +1105,12 @@ class _V2rayPowerCard extends StatelessWidget {
     final connected = activeId != null && state.isConnected;
     final connecting = activeId != null && state.status == VpnStatus.connecting;
     final busy = state.isBusy;
-    final blockedByVoidCore = activeId == null && state.status != VpnStatus.disconnected;
+    final switchingFromVoidCore = activeId == null && state.status == VpnStatus.connected;
     final canTap = pinging || state.v2raySmartConnecting
         ? false
         : activeId != null
             ? state.status != VpnStatus.disconnecting
-            : !busy && !blockedByVoidCore && selectedConfig != null;
+            : !busy && selectedConfig != null;
     final Color fill = connected
         ? const Color(0xFF1FA463)
         : (connecting || busy ? scheme.primary : scheme.primaryContainer);
@@ -1125,8 +1125,8 @@ class _V2rayPowerCard extends StatelessWidget {
             ? 'Connecting'
             : state.status == VpnStatus.disconnecting && activeId != null
                 ? 'Disconnecting…'
-                : blockedByVoidCore
-                    ? 'Disconnect VOIDCORE before using V2Ray'
+                : switchingFromVoidCore
+                    ? 'Switch to V2Ray'
                     : selectedConfig == null
                         ? 'Select or import a V2Ray profile'
                         : 'Disconnected';
@@ -1137,10 +1137,6 @@ class _V2rayPowerCard extends StatelessWidget {
       if (activeId != null) {
         await state.disconnect();
         onMessage('V2Ray disconnected.');
-        return;
-      }
-      if (blockedByVoidCore) {
-        onMessage('Disconnect the active VOIDCORE connection first.');
         return;
       }
       final config = selectedConfig;
