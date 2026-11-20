@@ -32,6 +32,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
   bool _cancelPingAll = false;
   int _pingAllProgress = 0;
   int _pingAllTotal = 0;
+  String? _pingAllSummary;
   String _sortMode = 'default';
 
   Future<int?> _measureTcpLatency(ChainProxy config) async {
@@ -55,16 +56,19 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
   }
 
   Future<void> _probe(ChainProxy config) async {
+    final state = AppScope.read(context);
     final info = ChainInfo.of(config.link);
     if (info == null) {
       _message('This configuration is invalid.');
       return;
     }
     if (info.isUdp) {
-      _message('This is a UDP-only profile; a direct TCP ping is unavailable.');
+      _message('This profile uses UDP; a direct TCP latency test is not available.');
       return;
     }
-    if (AppScope.read(context).status != VpnStatus.disconnected) {
+    if (state.status != VpnStatus.disconnected ||
+        state.smartConnecting ||
+        state.v2raySmartConnecting) {
       _message('Disconnect the active connection before testing direct server latency.');
       return;
     }
@@ -73,6 +77,12 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
     try {
       final latency = await _measureTcpLatency(config);
       if (!mounted) return;
+      if (state.status != VpnStatus.disconnected ||
+          state.smartConnecting ||
+          state.v2raySmartConnecting) {
+        _message('Latency test discarded because a VPN connection started.');
+        return;
+      }
       setState(() => _latencies[config.id] = latency ?? -1);
       _message(latency == null || latency < 0
           ? '${config.name}: server is not reachable over TCP.'
@@ -85,28 +95,48 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
   Future<void> _pingAll(List<ChainProxy> configs) async {
     if (_pingAllRunning || configs.isEmpty) return;
     final state = AppScope.read(context);
-    if (state.status != VpnStatus.disconnected || state.smartConnecting || state.v2raySmartConnecting) {
+    if (state.status != VpnStatus.disconnected ||
+        state.smartConnecting ||
+        state.v2raySmartConnecting) {
       _message('Disconnect the active connection before running Ping All.');
       return;
     }
-    final targets = List<ChainProxy>.of(configs);
+
+    // Use a snapshot so filtering, sorting or importing profiles cannot change this run.
+    final targets = List<ChainProxy>.unmodifiable(configs);
     setState(() {
       _pingAllRunning = true;
       _cancelPingAll = false;
       _pingAllProgress = 0;
       _pingAllTotal = targets.length;
+      _pingAllSummary = null;
       _probing.clear();
     });
+
     var reachable = 0;
     var unreachable = 0;
     var udpSkipped = 0;
     var invalid = 0;
+    var interrupted = false;
+
+    bool connectionIsIdle() =>
+        state.status == VpnStatus.disconnected &&
+        !state.smartConnecting &&
+        !state.v2raySmartConnecting;
+
     try {
-      // Small batches avoid opening too many sockets on mobile devices at once.
+      // Bounded batches keep socket use and DNS work reasonable on mobile devices.
       for (var offset = 0; offset < targets.length; offset += 8) {
         if (_cancelPingAll) break;
+        if (!connectionIsIdle()) {
+          interrupted = true;
+          _cancelPingAll = true;
+          break;
+        }
+
         final batch = targets.skip(offset).take(8).toList();
         if (mounted) setState(() => _probing.addAll(batch.map((c) => c.id)));
+
         final results = await Future.wait(batch.map((config) async {
           final info = ChainInfo.of(config.link);
           if (info == null) {
@@ -118,7 +148,15 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
           final latency = await _measureTcpLatency(config);
           return (id: config.id, latency: latency ?? -1, udp: false, invalid: false);
         }));
+
         if (!mounted) return;
+        // Never publish measurements if the OS VPN route changed mid-test.
+        if (!connectionIsIdle()) {
+          interrupted = true;
+          _cancelPingAll = true;
+          break;
+        }
+
         setState(() {
           for (final result in results) {
             _probing.remove(result.id);
@@ -138,10 +176,15 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
           _pingAllProgress += batch.length;
         });
       }
+
       if (!mounted) return;
-      _message(_cancelPingAll
-          ? 'Ping All cancelled · $reachable reachable, $unreachable unreachable, $udpSkipped UDP-only skipped.'
-          : 'Ping All complete · $reachable reachable, $unreachable unreachable, $udpSkipped UDP-only skipped, $invalid invalid.');
+      final summary = interrupted
+          ? 'Ping All stopped because a VPN connection started · $reachable reachable, $unreachable unreachable, $udpSkipped UDP-only skipped.'
+          : _cancelPingAll
+              ? 'Ping All cancelled · $reachable reachable, $unreachable unreachable, $udpSkipped UDP-only skipped.'
+              : 'Ping All complete · $reachable reachable, $unreachable unreachable, $udpSkipped UDP-only skipped, $invalid invalid.';
+      setState(() => _pingAllSummary = summary);
+      _message(summary);
     } finally {
       if (mounted) {
         setState(() {
@@ -589,7 +632,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                _V2rayPowerCard(onMessage: _message),
+                _V2rayPowerCard(onMessage: _message, pinging: _pingAllRunning),
                 const SizedBox(height: 14),
                 Text('V2Ray workspace', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
@@ -656,7 +699,23 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                     minHeight: 4,
                   ),
                   const SizedBox(height: 4),
-                  Text('Testing servers · $_pingAllProgress / $_pingAllTotal', style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  Text('Testing servers · $_pingAllProgress / $_pingAllTotal · ${_probing.length} active', style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                ],
+                if (!_pingAllRunning && _pingAllSummary != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .55),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Symbols.network_ping_rounded, size: 18, color: theme.colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(_pingAllSummary!, style: theme.textTheme.bodySmall)),
+                    ]),
+                  ),
                 ],
                 if (state.v2rayNeedsReconnect && state.activeV2rayId != null) ...[
                   const SizedBox(height: 6),
@@ -769,7 +828,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                       ? ''
                       : latency < 0
                           ? ' · Timeout'
-                          : ' · ${latency} ms';
+                          : ' · ${latency} ms TCP';
                   final selected = _selected.contains(config.id);
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -874,7 +933,8 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
 
 class _V2rayPowerCard extends StatelessWidget {
   final ValueChanged<String> onMessage;
-  const _V2rayPowerCard({required this.onMessage});
+  final bool pinging;
+  const _V2rayPowerCard({required this.onMessage, required this.pinging});
 
   @override
   Widget build(BuildContext context) {
@@ -892,7 +952,7 @@ class _V2rayPowerCard extends StatelessWidget {
     final connecting = activeId != null && state.status == VpnStatus.connecting;
     final busy = state.isBusy;
     final blockedByVoidCore = activeId == null && state.status != VpnStatus.disconnected;
-    final canTap = state.v2raySmartConnecting
+    final canTap = pinging || state.v2raySmartConnecting
         ? false
         : activeId != null
             ? state.status != VpnStatus.disconnecting
@@ -903,7 +963,9 @@ class _V2rayPowerCard extends StatelessWidget {
     final Color iconColor = connected
         ? Colors.white
         : (connecting || busy ? scheme.onPrimary : scheme.onPrimaryContainer);
-    final statusText = connected
+    final statusText = pinging
+        ? 'Testing server latency…'
+        : connected
         ? 'V2Ray connected'
         : connecting
             ? 'Connecting to V2Ray…'
@@ -917,6 +979,7 @@ class _V2rayPowerCard extends StatelessWidget {
     final profileText = activeConfig?.name ?? selectedConfig?.name ?? 'No profile selected';
 
     Future<void> toggle() async {
+      if (pinging) return;
       if (activeId != null) {
         await state.disconnect();
         onMessage('V2Ray disconnected.');
@@ -951,7 +1014,7 @@ class _V2rayPowerCard extends StatelessWidget {
             const SizedBox(height: 14),
             Semantics(
               button: true,
-              label: connected ? 'Disconnect V2Ray' : 'Connect selected V2Ray profile',
+              label: pinging ? 'V2Ray latency test in progress' : connected ? 'Disconnect V2Ray' : 'Connect selected V2Ray profile',
               child: InkWell(
                 onTap: canTap ? toggle : null,
                 customBorder: const CircleBorder(),
