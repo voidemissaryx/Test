@@ -933,8 +933,8 @@ class Profile {
   final ServerlessSettings serverless;
   final TorSettings tor;
 
-  /// The saved chain proxies (Settings → Chain proxies); which one a connection uses is the
-  /// device's choice (DeviceSettings.exitChains).
+  /// Legacy chain-proxy entries from older settings exports. They are retained only for
+  /// backward-compatible parsing; the current app manages profiles in the V2Ray workspace.
   final List<ChainProxy> chains;
 
   /// Used by Worker's Fragment mode.
@@ -1020,8 +1020,7 @@ class Profile {
     ...sparseDiff(toJson(), const Profile().toJson())..remove('schemaVersion'),
   };
 
-  /// For exported files: everything except the private parts, the WARP and MASQUE accounts and
-  /// Tor bridges. Chain proxies are included.
+  /// For exported files: everything except private parts, WARP and MASQUE accounts, and Tor bridges.
   Map<String, dynamic> toExportJson() {
     final json = toSparseJson();
     void drop(String section, String key) {
