@@ -954,6 +954,7 @@ class AppState extends ChangeNotifier {
       }
     }
     activeV2rayId = null;
+    v2rayNeedsReconnect = false;
     _connectStartedAt = DateTime.now();
     _connectMode = mode.label;
     error = null;
@@ -1036,6 +1037,9 @@ class AppState extends ChangeNotifier {
       if (!connected) {
         await VpnChannel.stop();
         await _waitUntilDisconnected();
+        if (status != VpnStatus.disconnected) {
+          throw StateError('The failed V2Ray session did not stop cleanly.');
+        }
         activeV2rayId = null;
       }
       return connected;
@@ -1150,6 +1154,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> disconnect() {
     activeV2rayId = null;
+    v2rayNeedsReconnect = false;
     return VpnChannel.stop();
   }
 
