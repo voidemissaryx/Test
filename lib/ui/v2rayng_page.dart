@@ -493,6 +493,14 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                         : const Icon(Symbols.bolt_rounded),
                     label: const Text('V2Ray Smart Connect'),
                   ),
+                  if (state.v2raySmartConnecting) ...[
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: state.cancelV2raySmartConnect,
+                      icon: const Icon(Symbols.close_rounded),
+                      label: const Text('Cancel'),
+                    ),
+                  ],
                   const SizedBox(width: 8),
                   OutlinedButton.icon(
                     onPressed: state.isBusy || state.smartConnecting || state.v2raySmartConnecting ? null : _workspaceSettings,
