@@ -59,6 +59,51 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
 
+  Future<List<String>?> _chooseV2rayApps() async {
+    try {
+      final apps = await VpnChannel.installedApps();
+      if (!mounted) return null;
+      final selected = Set<String>.from(AppScope.read(context).v2rayPerAppApps);
+      final result = await showDialog<List<String>>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: const Text('V2Ray app selection'),
+            content: SizedBox(
+              width: 460,
+              height: 420,
+              child: apps.isEmpty
+                  ? const Center(child: Text('No installed apps were found.'))
+                  : ListView.builder(
+                      itemCount: apps.length,
+                      itemBuilder: (context, index) {
+                        final app = apps[index];
+                        return CheckboxListTile(
+                          value: selected.contains(app.packageName),
+                          title: Text(app.label),
+                          subtitle: Text(app.packageName),
+                          onChanged: (checked) => setDialogState(() {
+                            if (checked == true) { selected.add(app.packageName); }
+                            else { selected.remove(app.packageName); }
+                          }),
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(dialogContext, selected.toList()), child: const Text('Save selection')),
+            ],
+          ),
+        ),
+      );
+      return result;
+    } catch (e) {
+      _message('Could not load installed apps: $e');
+      return null;
+    }
+  }
+
   Future<void> _workspaceSettings() async {
     final state = AppScope.read(context);
     var appMode = state.v2rayAppMode;
@@ -91,6 +136,18 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                   DropdownMenuItem(value: PerAppMode.exclude, child: Text('Exclude selected apps')),
                 ],
                 onChanged: (value) { if (value != null) setDialogState(() => perAppMode = value); },
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final apps = await _chooseV2rayApps();
+                    if (apps != null) state.updateV2raySettings(apps: apps);
+                  },
+                  icon: const Icon(Symbols.apps_rounded),
+                  label: Text('Choose apps (${state.v2rayPerAppApps.length})'),
+                ),
               ),
               const SizedBox(height: 12),
               TextFormField(
