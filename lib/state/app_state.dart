@@ -133,7 +133,7 @@ class AppState extends ChangeNotifier {
   }
 
   /// App theme colour and light/dark mode. Separate notifiers so only the theme rebuilds.
-  final themeColor = ValueNotifier(ThemeColor.blue);
+  final themeColor = ValueNotifier(ThemeColor.purple);
   final themeMode = ValueNotifier(ThemeMode.system);
 
   VpnStatus status = VpnStatus.disconnected;
@@ -510,7 +510,7 @@ class AppState extends ChangeNotifier {
   void _applyDeviceSideEffects() {
     LocalProxy.credentials = device.lanAuth;
     themeColor.value =
-        ThemeColor.values.asNameMap()[device.themeColor] ?? ThemeColor.blue;
+        ThemeColor.values.asNameMap()[device.themeColor] ?? ThemeColor.purple;
     themeMode.value =
         ThemeMode.values.asNameMap()[device.themeMode] ?? ThemeMode.system;
   }
