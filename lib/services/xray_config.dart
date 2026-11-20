@@ -1860,6 +1860,9 @@ class XrayConfigBuilder {
     if (p.protocol == 'hysteria2') return _hysteria2Chain(p);
 
     final type = p['type'] ?? 'raw';
+    if (type == 'quic') {
+      throw StateError('The bundled Xray core does not support legacy QUIC transport.');
+    }
     final security = p['security'];
     final streamSettings = <String, dynamic>{
       'network': type,
@@ -1959,6 +1962,26 @@ class XrayConfigBuilder {
                     },
                   }
                 : {'type': 'none'},
+          },
+        };
+      case 'kcp' || 'mkcp':
+        return {
+          'kcpSettings': {
+            'mtu': int.tryParse(p['mtu'] ?? '') ?? 1350,
+            'tti': int.tryParse(p['tti'] ?? '') ?? 20,
+            'uplinkCapacity': int.tryParse(p['uplinkCapacity'] ?? '') ?? 5,
+            'downlinkCapacity': int.tryParse(p['downlinkCapacity'] ?? '') ?? 20,
+            'congestion': p['congestion'] == 'true',
+            'readBufferSize': int.tryParse(p['readBufferSize'] ?? '') ?? 2,
+            'writeBufferSize': int.tryParse(p['writeBufferSize'] ?? '') ?? 2,
+            'header': {'type': p['headerType'] ?? 'none'},
+          },
+        };
+      case 'h2' || 'http':
+        return {
+          'httpSettings': {
+            'host': host?.split(','),
+            'path': path,
           },
         };
       case 'ws':
