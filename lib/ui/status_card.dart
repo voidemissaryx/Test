@@ -426,7 +426,7 @@ class _PowerButtonState extends State<_PowerButton> {
 
     return Semantics(
       button: true,
-      label: state.status == VpnStatus.disconnected ? 'Connect' : 'Disconnect',
+      label: state.activeV2rayId != null ? 'Manage V2Ray in its workspace' : state.status == VpnStatus.disconnected ? 'Connect' : 'Disconnect',
       child: Stack(
         alignment: Alignment.center,
         children: [
