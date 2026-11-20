@@ -1084,10 +1084,15 @@ class AppState extends ChangeNotifier {
         }
       }
       final measured = <({ChainProxy config, int latency})>[];
+      var skippedUdpOnly = 0;
       for (final config in v2rayConfigs) {
         if (_cancelSmartConnection) break;
         final info = ChainInfo.of(config.link);
-        if (info == null || info.isUdp) continue;
+        if (info == null) continue;
+        if (info.isUdp) {
+          skippedUdpOnly++;
+          continue;
+        }
         smartConnectionStatus = 'Checking ${config.name}…';
         notifyListeners();
         try {
@@ -1110,7 +1115,9 @@ class AppState extends ChangeNotifier {
       }
       measured.sort((a, b) => a.latency.compareTo(b.latency));
       if (measured.isEmpty) {
-        smartConnectionStatus = 'No TCP-reachable V2Ray server was found';
+        smartConnectionStatus = skippedUdpOnly > 0
+            ? 'No TCP-reachable server found; skipped $skippedUdpOnly UDP-only profile(s) because they cannot be measured with a direct TCP probe.'
+            : 'No TCP-reachable V2Ray server was found';
         return null;
       }
       for (final candidate in measured) {
