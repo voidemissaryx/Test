@@ -12,8 +12,8 @@ import '../services/chain_proxy.dart';
 import '../services/vpn_channel.dart';
 import '../state/app_state.dart';
 
-/// The V2rayNG section manages share links supported by this app's existing Xray parser.
-/// Imported entries are available as chain proxies; this page does not add a second VPN engine.
+/// The V2Ray workspace manages imported share-link profiles using the app's existing Xray engine.
+/// It shares the single VPN service with VOIDCORE and never starts a second tunnel.
 class V2rayNgPage extends StatefulWidget {
   const V2rayNgPage({super.key});
 
@@ -759,6 +759,12 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                 itemBuilder: (context, index) {
                   final config = configs[index];
                   final info = ChainInfo.of(config.link);
+                  final latency = _latencies[config.id];
+                  final latencyLabel = latency == null
+                      ? ''
+                      : latency < 0
+                          ? ' · Timeout'
+                          : ' · ${latency} ms';
                   final selected = _selected.contains(config.id);
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -789,7 +795,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                                       ? 'Unsupported configuration'
                                       : info.isUdp
                                           ? '${info.address} · UDP · TCP ping unavailable'
-                                          : '${info.address}${_latencies.containsKey(config.id) ? ' · ${_latencies[config.id]! < 0 ? 'Timeout' : '${_latencies[config.id]} ms'}' : ''}',
+                                          : '${info.address}$latencyLabel',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
@@ -884,7 +890,7 @@ class _V2rayPowerCard extends StatelessWidget {
     final canTap = state.v2raySmartConnecting
         ? false
         : activeId != null
-            ? true
+            ? state.status != VpnStatus.disconnecting
             : !busy && !blockedByVoidCore && selectedConfig != null;
     final Color fill = connected
         ? const Color(0xFF1FA463)
