@@ -55,6 +55,7 @@ class AppState extends ChangeNotifier {
   /// Recent connection attempts; contains metadata only, never configuration payloads.
   List<Map<String, dynamic>> connectionHistory = [];
   List<ChainProxy> v2rayConfigs = [];
+  List<Map<String, String>> v2raySubscriptions = [];
   AppMode v2rayAppMode = AppMode.vpn;
   PerAppMode v2rayPerAppMode = PerAppMode.off;
   List<String> v2rayPerAppApps = [];
@@ -331,6 +332,71 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _saveV2raySubscriptions() {
+    _prefs.setString('voidcore.v2ray.subscriptions', jsonEncode(v2raySubscriptions));
+  }
+
+  void addV2raySubscription({required String id, required String name, required String url}) {
+    v2raySubscriptions = [...v2raySubscriptions, {'id': id, 'name': name, 'url': url}];
+    _saveV2raySubscriptions();
+    notifyListeners();
+  }
+
+  void updateV2raySubscription({required String id, required String name, required String url}) {
+    v2raySubscriptions = [
+      for (final item in v2raySubscriptions)
+        if (item['id'] == id) {'id': id, 'name': name, 'url': url} else item,
+    ];
+    _saveV2raySubscriptions();
+    notifyListeners();
+  }
+
+  void deleteV2raySubscription(String id) {
+    v2raySubscriptions = v2raySubscriptions.where((item) => item['id'] != id).toList();
+    final category = 'subscription:$id';
+    final removed = v2rayConfigs.where((config) => config.category == category).toList();
+    for (final config in removed) {
+      if (activeV2rayId == config.id) unawaited(disconnect());
+      if (selectedV2rayId == config.id) selectedV2rayId = null;
+    }
+    v2rayConfigs = v2rayConfigs.where((config) => config.category != category).toList();
+    if (selectedV2rayId == null && v2rayConfigs.isNotEmpty) {
+      selectedV2rayId = v2rayConfigs.first.id;
+      _prefs.setString('voidcore.v2ray.selected', selectedV2rayId!);
+    }
+    _saveV2rayConfigs();
+    _saveV2raySubscriptions();
+    notifyListeners();
+  }
+
+  void replaceV2raySubscriptionConfigs(String id, List<ChainProxy> configs) {
+    final category = 'subscription:$id';
+    final previous = v2rayConfigs.where((config) => config.category == category).toList();
+    if (previous.any((config) => config.id == activeV2rayId)) {
+      unawaited(disconnect());
+      activeV2rayId = null;
+    }
+    final previousIds = previous.map((config) => config.id).toSet();
+    v2rayConfigs = v2rayConfigs.where((config) => config.category != category).toList();
+    final existingLinks = v2rayConfigs.map((config) => config.link).toSet();
+    for (final config in configs) {
+      if (existingLinks.add(config.link)) {
+        v2rayConfigs.add(config.copyWith(category: category));
+      }
+    }
+    if (selectedV2rayId == null || previousIds.contains(selectedV2rayId)) {
+      selectedV2rayId = v2rayConfigs.where((config) => config.category == category).firstOrNull?.id
+          ?? v2rayConfigs.firstOrNull?.id;
+      if (selectedV2rayId == null) {
+        _prefs.remove('voidcore.v2ray.selected');
+      } else {
+        _prefs.setString('voidcore.v2ray.selected', selectedV2rayId!);
+      }
+    }
+    _saveV2rayConfigs();
+    notifyListeners();
+  }
+
   void _saveV2rayConfigs() {
     _prefs.setString(
       'voidcore.v2ray.configs',
@@ -420,6 +486,15 @@ class AppState extends ChangeNotifier {
         .updated('vless', null);
     device = DeviceSettings.fromJson(_decodeMap(_prefs.getString(_kDevice)));
     selectedV2rayId = _prefs.getString('voidcore.v2ray.selected');
+    v2raySubscriptions = _decodeList(_prefs.getString('voidcore.v2ray.subscriptions'))
+        .whereType<Map>()
+        .map((item) => {
+          'id': '${item['id'] ?? ''}',
+          'name': '${item['name'] ?? ''}',
+          'url': '${item['url'] ?? ''}',
+        })
+        .where((item) => item['id']!.isNotEmpty && item['url']!.isNotEmpty)
+        .toList();
     final savedV2rayConfigs = _prefs.getString('voidcore.v2ray.configs');
     v2rayConfigs = savedV2rayConfigs == null
         ? List<ChainProxy>.of(_stored.chains)
