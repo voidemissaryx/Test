@@ -438,6 +438,32 @@ class XrayConfigBuilder {
 
   /// Serverless, or a Best Ping balancer over every worker address/port (or WARP endpoint).
   /// [variant] picks Worker's and WARP's config.
+  /// Builds a standalone TUN configuration for a saved V2Ray workspace entry.
+  /// It reuses the same Xray outbound builders as chain proxies, but routes traffic
+  /// directly through this outbound instead of dialing it through another VPN.
+  Future<XrayBuild> buildStandaloneChain(ChainProxy selected) async {
+    _mode = ConnectionMode.worker;
+    _exit = ExitNode.chain;
+    _exitType = false;
+    final outbound = _chainOutbound(selected: selected);
+    if (outbound == null) {
+      throw StateError('Could not build the selected V2Ray configuration.');
+    }
+    outbound['tag'] = 'proxy';
+    final stream = outbound['streamSettings'];
+    if (stream is Map) {
+      final sockopt = stream['sockopt'];
+      if (sockopt is Map) sockopt.remove('dialerProxy');
+    }
+    _exit = ExitNode.worker;
+    final config = await _buildConfig(
+      outbounds: [outbound],
+      isBalancer: false,
+      outboundAddrs: [selected.link],
+    );
+    return XrayBuild(config);
+  }
+
   Future<XrayBuild> build(
     ConnectionMode mode, {
     ConnectionVariant variant = ConnectionVariant.normal,
@@ -1802,9 +1828,9 @@ class XrayConfigBuilder {
   }
 
   /// The chain proxy chosen for this connection type, when it's the exit node.
-  Map<String, dynamic>? _chainOutbound() {
-    if (_exit != ExitNode.chain) return null;
-    final chain = chainFor(_mode, device, profile.chains);
+  Map<String, dynamic>? _chainOutbound({ChainProxy? selected}) {
+    if (_exit != ExitNode.chain && selected == null) return null;
+    final chain = selected ?? chainFor(_mode, device, profile.chains);
     if (chain == null) {
       throw StateError('Add a chain proxy in Settings → Chain proxies first.');
     }
