@@ -38,7 +38,7 @@ class _StatusCardState extends State<StatusCard> {
     super.initState();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       final state = AppScope.read(context);
-      if (mounted && state.isConnected && state.activeV2rayId == null && !state.v2rayConnecting && !state.v2raySmartConnecting) setState(() {});
+      if (mounted && state.isConnected && state.activeV2rayId == null && !state.v2rayConnecting && !state.v2rayDisconnecting && !state.v2raySmartConnecting) setState(() {});
     });
   }
 
@@ -53,7 +53,7 @@ class _StatusCardState extends State<StatusCard> {
     final state = AppScope.of(context);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final v2rayOwnsTunnel = state.activeV2rayId != null || state.v2rayConnecting || state.v2raySmartConnecting;
+    final v2rayOwnsTunnel = state.activeV2rayId != null || state.v2rayConnecting || state.v2rayDisconnecting || state.v2raySmartConnecting;
     final homeStatus = v2rayOwnsTunnel ? VpnStatus.disconnected : state.status;
     final homeConnected = homeStatus == VpnStatus.connected;
     final failed = homeStatus == VpnStatus.disconnected && !v2rayOwnsTunnel && state.error != null;
@@ -154,7 +154,7 @@ class _Metrics extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    final voidCoreConnected = state.isConnected && state.activeV2rayId == null && !state.v2rayConnecting && !state.v2raySmartConnecting;
+    final voidCoreConnected = state.isConnected && state.activeV2rayId == null && !state.v2rayConnecting && !state.v2rayDisconnecting && !state.v2raySmartConnecting;
     final since = voidCoreConnected ? state.connectedAt : null;
     final ips = voidCoreConnected ? state.myIps : null;
 
@@ -408,7 +408,7 @@ class _PowerButtonState extends State<_PowerButton> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final scheme = Theme.of(context).colorScheme;
-    final v2rayOwnsTunnel = state.activeV2rayId != null || state.v2rayConnecting || state.v2raySmartConnecting;
+    final v2rayOwnsTunnel = state.activeV2rayId != null || state.v2rayConnecting || state.v2rayDisconnecting || state.v2raySmartConnecting;
     final homeStatus = v2rayOwnsTunnel ? VpnStatus.disconnected : state.status;
     final busy = v2rayOwnsTunnel ? (state.v2rayConnecting || state.v2raySmartConnecting) : state.isBusy;
     final (Color fill, Color iconColor) = switch (homeStatus) {
