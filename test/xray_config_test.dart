@@ -484,7 +484,14 @@ void main() {
       final c = (await builder(profile).buildStandaloneChain(selected)).config;
       final outbounds = (c['outbounds'] as List).cast<Map>();
       final proxy = outbounds.singleWhere((o) => o['tag'] == 'proxy');
-      expect(proxy['protocol'], isNotEmpty, reason: name);
+      final expectedProtocols = {
+        'vless_reality': 'vless',
+        'trojan_ws': 'trojan',
+        'ss': 'shadowsocks',
+        'socks': 'socks',
+        'vmess_ws': 'vmess',
+      };
+      expect(proxy['protocol'], expectedProtocols[name], reason: name);
       expect(
         proxy['streamSettings']?['sockopt']?['dialerProxy'],
         isNull,
@@ -1710,7 +1717,7 @@ void main() {
       );
     });
 
-    test('chain proxy is dialed through WARP', () async {
+    test('legacy Chain selection does not affect the main WARP connection', () async {
       final c = (await builder({
         ...warpSettings,
         ...chains(chainLink),
