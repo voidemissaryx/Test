@@ -339,7 +339,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Configuration manager', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text('Import and organize supported share links. Configurations can be used as chain proxies in VOIDCORE.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                Text('Manage independent V2Ray profiles, test endpoint latency, and connect through the shared Xray engine.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 12),
                 Row(children: [
                   FilledButton.icon(
@@ -466,7 +466,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Text(config.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                                 const SizedBox(height: 3),
-                                Text(info?.address ?? 'Unsupported configuration', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                                Text("${info?.address ?? 'Unsupported configuration'}${_latencies.containsKey(config.id) ? ' · ${_latencies[config.id]} ms' : ''}", maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                                 const SizedBox(height: 7),
                                 Wrap(spacing: 5, runSpacing: 4, children: [
                                   for (final tag in info?.tags ?? const ['Invalid']) Chip(label: Text(tag), visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
