@@ -521,6 +521,11 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
   }
 
   Future<void> _refreshSubscription(Map<String, String> subscription) async {
+    final currentState = AppScope.read(context);
+    if (currentState.status != VpnStatus.disconnected || currentState.smartConnecting || currentState.v2raySmartConnecting) {
+      _message('Disconnect the active connection before updating subscriptions.');
+      return;
+    }
     final uri = Uri.tryParse(subscription['url'] ?? '');
     if (uri == null || !{'http', 'https'}.contains(uri.scheme) || uri.host.isEmpty) {
       _message('This subscription URL is invalid.');
@@ -1016,7 +1021,7 @@ class _V2rayNgPageState extends State<V2rayNgPage> {
                                     visualDensity: VisualDensity.compact,
                                     padding: EdgeInsets.zero,
                                   ),
-                                  if (config.category != null) Chip(label: Text(config.category!), visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+                                  if (config.category != null && !config.category!.startsWith('subscription:')) Chip(label: Text(config.category!), visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
                                 ]),
                               ]),
                             ),
